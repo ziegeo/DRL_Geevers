@@ -1,3 +1,4 @@
+"""@author: KevinG."""
 import ast
 import random
 import pandas as pd
@@ -8,11 +9,18 @@ import itertools
 
 
 class BeerGame:
+    """
+    Based on the beer game by Chaharsooghi (2008).
+    """
+    
     def __init__(self):
+        #RANDOM NOG EVEN WAT AAN VERANDEREN
+        random.seed(41)
+        
         # Time variables
         self.t = 0                   # current time
         self.iteration = 0           # current iteration
-        self.max_iteration = 1       # max number of iterations
+        self.max_iteration = 5       # max number of iterations
         self.alpha = 0.17            # Learning rate
         self.exploitation = 0.02     # Starting per
         self.n = 35
@@ -21,10 +29,9 @@ class BeerGame:
         self.exploitation_max = 0.90
         self.exploitation_min = 0.02
         self.exploitation_iteration_max = 0.98
-        self.exploitation_delta = (self.exploitation_max -
-                                   self.exploitation_min) / self.max_iteration
-        self.exploitation_iteration_delta = (self.exploitation_iteration_max -
-                                             self.exploitation) / self.n
+        self.exploitation_delta = ((self.exploitation_max -
+                                   self.exploitation_min) /
+                                   (self.max_iteration - 1))
 
         # Supply chain variables
         # Number of nodes per echelon, including suppliers and customers
@@ -158,6 +165,9 @@ class BeerGame:
         totalrewardlist = []
         while self.iteration < self.max_iteration:
             self.exploitation_iteration = self.exploitation
+            self.exploitation_iteration_delta = ((
+                self.exploitation_iteration_max - self.exploitation) /
+                (self.n - 1))
             totalreward = 0
             self.env._reset()
             old_state = [7, 7, 7, 7]
@@ -165,8 +175,6 @@ class BeerGame:
                 action = self.get_next_action(old_state)
                 # Take action and calculate r(t+1)
                 new_state, reward, vf = self.env._step(self.t, action)
-                totalreward += reward
-                # print(totalreward)
                 new_state = self.state_to_str(new_state)
                 old_state = str(old_state)
                 action = str(action)
@@ -174,20 +182,22 @@ class BeerGame:
                 old_state = new_state
                 self.exploitation_iteration += self.exploitation_iteration_delta
                 self.t += 1
-            totalrewardlist.append(int(totalreward))
-            if totalreward < min_reward:
-                min_reward = totalreward
-            # This exploitation is increased with increasing iteration number linearly
             self.exploitation += self.exploitation_delta
+            # Every 100 iterations, the greedy policy is performed to show the
+            # current performance
+            if self.iteration % 100 == 0:
+                totalreward = self.perform_greedy_policy()
+                totalrewardlist.append(int(totalreward))
             self.t = 0
-            print(self.iteration/self.max_iteration)
             self.iteration += 1
-        print('Lowest reward: ' + str(min_reward))
-        self.perform_greedy_policy()
+        totalreward = self.perform_greedy_policy()
+        totalrewardlist.append(int(totalreward))
+        print(totalrewardlist)
         self.visualizecosts(totalrewardlist)
 
 
     def perform_greedy_policy(self):
+        self.t = 0
         totalreward = 0
         self.env._reset()
         old_state = [7, 7, 7, 7]
@@ -195,15 +205,16 @@ class BeerGame:
         while self.t < self.n:
             action = self.greedy_action(old_state)
             policy.append(action)
-            new_state, reward, vf = self.env._step(self.t, action, True)
-            print(reward)
+            new_state, reward, vf = self.env._step(self.t, action, False, 'greedy')
+            # print(reward)
             totalreward += reward
             new_state = self.state_to_str(new_state)
             old_state = new_state
             self.t += 1
-        print('Greedy Policy reward: ' + str(totalreward))
+        #print('Greedy Policy reward: ' + str(totalreward))
         self.env.close()
-        return policy
+        return totalreward
+
 
     def visualizecosts(self, values):
         plt.xlabel("Time")

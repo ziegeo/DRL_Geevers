@@ -166,15 +166,16 @@ class DivergentSupplyChain:
         totalrewardlist = []
         while self.iteration < self.max_iteration:
             self.exploitation_iteration = self.exploitation
+            self.exploitation_iteration_delta = ((
+                self.exploitation_iteration_max - self.exploitation) /
+                (self.n - 1))
             totalreward = 0
             self.env._reset()
-            old_state = [7, 7, 7]
+            old_state = [7, 7, 7, 7]
             while self.t < self.n:
                 action = self.get_next_action(old_state)
                 # Take action and calculate r(t+1)
                 new_state, reward, vf = self.env._step(self.t, action)
-                totalreward += reward
-                # print(totalreward)
                 new_state = self.state_to_str(new_state)
                 old_state = str(old_state)
                 action = str(action)
@@ -182,35 +183,39 @@ class DivergentSupplyChain:
                 old_state = new_state
                 self.exploitation_iteration += self.exploitation_iteration_delta
                 self.t += 1
-            totalrewardlist.append(int(totalreward))
-            if totalreward < min_reward:
-                min_reward = totalreward
-            # This exploitation is increased with increasing iteration number linearly
             self.exploitation += self.exploitation_delta
+            # Every 100 iterations, the greedy policy is performed to show the
+            # current performance
+            if self.iteration % 100 == 0:
+                totalreward = self.perform_greedy_policy()
+                totalrewardlist.append(int(totalreward))
             self.t = 0
-            print(self.iteration/self.max_iteration)
             self.iteration += 1
-        print('Lowest reward: ' + str(min_reward))
-        self.perform_greedy_policy()
+        totalreward = self.perform_greedy_policy()
+        totalrewardlist.append(int(totalreward))
+        print(totalrewardlist)
         self.visualizecosts(totalrewardlist)
 
+
     def perform_greedy_policy(self):
+        self.t = 0
         totalreward = 0
         self.env._reset()
-        old_state = [7, 7, 7]
+        old_state = [7, 7, 7, 7]
         policy = []
         while self.t < self.n:
             action = self.greedy_action(old_state)
             policy.append(action)
             new_state, reward, vf = self.env._step(self.t, action, True)
-            print(reward)
+            # print(reward)
             totalreward += reward
             new_state = self.state_to_str(new_state)
             old_state = new_state
             self.t += 1
-        print('Greedy Policy reward: ' + str(totalreward))
+        #print('Greedy Policy reward: ' + str(totalreward))
         self.env.close()
-        return policy
+        return totalreward
+
 
     def visualizecosts(self, values):
         plt.xlabel("Time")
@@ -219,7 +224,6 @@ class DivergentSupplyChain:
         plt.plot(values)
         plt.legend()
         plt.show()
-
 
 env = DivergentSupplyChain()
 DivergentSupplyChain.iteration(env)

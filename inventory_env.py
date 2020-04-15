@@ -3,7 +3,8 @@ import numpy as np
 import networkx as nx
 import matplotlib.pyplot as plt
 import gym
-
+import random
+        
 # class InventoryEnv(gym.Env, utils.EzPickle):
 # EVEN GOED KIJKEN WAT IN BEERGAME.PY en WAT HIERIN
 
@@ -57,16 +58,21 @@ class InventoryEnv(gym.Env):
 
         Writes the demand to the orders table.
         """
-        self.demand = [15, 10, 8, 14, 9, 3, 13, 2, 13, 11, 3, 4, 6, 11, 15, 12,
-                       15, 4, 12, 3, 13, 10, 15, 15, 3, 11, 1, 13, 10, 10, 0,
-                       0, 8, 0, 14]
+        if self.phase == 'learning':
+            demand = random.randrange(0,16)
+        elif self.phase == 'greedy':
+            demandlist = [15, 10, 8, 14, 9, 3, 13, 2, 13, 11, 3, 4, 6, 11, 15,
+                           12, 15, 4, 12, 3, 13, 10, 15, 15, 3, 11, 1, 13, 10,
+                           10, 0, 0, 8, 0, 14]
+            demand = demandlist[t]
 
         for retailer in range(self.no_suppliers, self.no_stockpoints +
                               self.no_suppliers):
             for customer in range(self.no_suppliers + self.no_stockpoints,
                                   self.no_nodes):
                 if self.connections[retailer, customer] == 1:
-                    self.O[t, customer, retailer] = self.demand[t]
+                    self.O[t, customer, retailer] = demand
+                    print(demand)
         # self.O[t, 5, 4] = self.demand[t]
 
     def generateLeadtime(self, t, source, destination):
@@ -83,9 +89,13 @@ class InventoryEnv(gym.Env):
             # For now, lead time as given in Beer Game paper, will be replaced
             # by a distribution
             # TODO: Replace by distribution
-            leadtimelist = [0, 2, 0, 2, 4, 4, 4, 0, 2, 4, 1, 1, 0, 0, 1, 1, 0, 1,
-                         1, 2, 1, 1, 1, 4, 2, 2, 1, 4, 3, 4, 1, 4, 0, 3, 3, 4]
-            leadtime = leadtimelist[t]
+            if self.phase == 'learning':
+                leadtime = random.randrange(0,5)
+            elif self.phase == 'greedy': 
+                leadtimelist = [0, 2, 0, 2, 4, 4, 4, 0, 2, 4, 1, 1, 0, 0, 1, 1,
+                                0, 1, 1, 2, 1, 1, 1, 4, 2, 2, 1, 4, 3, 4, 1, 4,
+                                0, 3, 3, 4]
+                leadtime = leadtimelist[t]
         return leadtime
 
 # def transition(self, x, a, d):
@@ -199,7 +209,7 @@ class InventoryEnv(gym.Env):
         leadtime = self.generateLeadtime(t, source, destination)
         # The order is fulfilled immediately for the customer
         # or whenever the leadtime is 0
-        # TODO: Leadtime per connection, daarmee kan je voor customers 
+        # TODO: Leadtime per connection, daarmee kan je voor customers
         # altijd een leadtime 0 doen
         if leadtime == 0:
             # The new inventorylevel is increased with the shipped quantity
@@ -223,9 +233,8 @@ class InventoryEnv(gym.Env):
             for j in range(0, self.no_stockpoints + self.no_suppliers):
                 if self.connections[j, i] == 1:
                     incomingOrders = np.sum(self.O[t], 0)
-                   # self.O[t+1, i, j] += incomingOrders[i] 
-                    #+ action[i-1]
-                    self.O[t+1, i, i-1] += self.O[t, i+1, i] + self.policy[t, i-1]
+                    self.O[t+1, i, j] += incomingOrders[i] + action[i-1]
+                    #self.O[t+1, i, i-1] += self.O[t, i+1, i] + self.policy[t, i-1]
 
     # De volgende function kan beter in de case specific file, aangezien dit
     # natuurlijk heel erg afhangt van je eigen case
@@ -254,7 +263,8 @@ class InventoryEnv(gym.Env):
             else:
                 self.CIP[t, i-1] = 9
 
-    def _step(self, t, action, visualize=False):
+    def _step(self, t, action, visualize=False, phase='learning'):
+        self.phase = phase
         # previous orders are received:
         self._initializeIP(t)
         if visualize:
