@@ -4,9 +4,6 @@ import networkx as nx
 import matplotlib.pyplot as plt
 import gym
 import random
-        
-# class InventoryEnv(gym.Env, utils.EzPickle):
-# EVEN GOED KIJKEN WAT IN BEERGAME.PY en WAT HIERIN
 
 # def _seed(self, seed=None):
 #     self.np_random, seed = seeding.np_random(seed)
@@ -65,12 +62,10 @@ class InventoryEnv(gym.Env):
                           10, 0, 0, 8, 0, 14]
             demand = demandlist[t]
 
-        for retailer in range(self.no_suppliers, self.no_stockpoints +
-                              self.no_suppliers):
-            for customer in range(self.no_suppliers + self.no_stockpoints,
-                                  self.no_nodes):
-                if self.connections[retailer, customer] == 1:
-                    self.O[t, customer, retailer] = demand
+        retailer_list, customer_list = np.nonzero(self.connections)
+        for retailer, customer in zip(retailer_list[self.no_stockpoints:],
+                                      customer_list[self.no_stockpoints:]):
+            self.O[t, customer, retailer] = demand
 
     def generateLeadtime(self, t, source, destination):
         """
@@ -129,7 +124,8 @@ class InventoryEnv(gym.Env):
                            self.no_suppliers):
                 items_hold = self.INV[t, i]
                 items_backorder = self.BO[t, i-1, i]
-                vf = vf + items_hold + items_backorder * 2
+                vf = vf + items_hold * self.holding_costs + \
+                    items_backorder * self.bo_costs
         return vf
 
     def _initializeIP(self, t):
@@ -150,6 +146,7 @@ class InventoryEnv(gym.Env):
         Customers are not taken into account because of zero lead time
         Based on the amount stated in T
         """
+        # TODO: Hier zou je ook kunnen loopen over nonzeros van T[t]
         # Loop over all suppliers and stockpoints
         for i in range(0, self.no_stockpoints + self.no_suppliers):
             # Loop over all stockpoints
@@ -179,21 +176,21 @@ class InventoryEnv(gym.Env):
         if self.unsatisfied_demand == 'backorders':
             i_list, j_list = np.nonzero(self.BO[t])
             for i, j in zip(i_list, j_list):
+                inventory = self.INV[t, j]
                 # If there are any backorders, fulfill them afterwards
-                if self.INV[t, j] > 0:
+                if inventory > 0:
                     # If the inventory is larger than the backorder
                     # Fulfill the whole backorder
                     backorder = self.BO[t, i, j]
-                    if self.INV[t, j] >= backorder:
+                    if inventory >= backorder:
                         # Dit vind ik heel onlogisch, maar voorzover ik nu kan zien
                         # in de IPs komt de backorder nooit aan.
                         self.INV[t, j] -= backorder
                         self.BO[t, i, j] = 0
                     # Else, fulfill the entire inventory
                     else:
-                        quantity = self.INV[t, j]
-                        self._fulfillOrder(t, j, i, quantity)
-                        self.BO[t, i, j] -= quantity
+                        self._fulfillOrder(t, j, i, inventory)
+                        self.BO[t, i, j] -= inventory
 
     def _fulfillOrder(self, t, source, destination, quantity):
         # Draw a random lead time
@@ -215,11 +212,10 @@ class InventoryEnv(gym.Env):
         self.INV[t, source] -= quantity
 
     def _placeOutgoingOrder(self, t, action):
-        # Dit wordt nog wel een lastige, want hier moet je rekening houden met
-        # de connecties wat betreft het plaatsen van orders
-        # Loop over all stockpoints
+        # Retrieve all nodes with a connection to each other
         i_list, j_list = np.nonzero(self.connections)
         # Misschien vervangen door -no_customers?
+        # Loop over connections, excluding the customers
         for i, j in zip(i_list[:-1], j_list[:-1]):
             incomingOrders = np.sum(self.O[t], 0)
             self.O[t+1, j, i] += incomingOrders[j] + action[j-1]
@@ -252,7 +248,7 @@ class InventoryEnv(gym.Env):
             else:
                 self.CIP[t, i-1] = 9
 
-    def _step(self, t, action, visualize=False, phase='learning'):
+    def step(self, t, action, visualize=False, phase='learning'):
         self.phase = phase
         # previous orders are received:
         self._initializeIP(t)
@@ -272,7 +268,7 @@ class InventoryEnv(gym.Env):
         # valuefunction = self.valuefunction(t)
         return self.CIP[t], reward
 
-    def _reset(self):
+    def reset(self):
         """
         Reset the simulation.
 
