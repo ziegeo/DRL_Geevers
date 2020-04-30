@@ -22,7 +22,8 @@ class InventoryEnv(gym.Env):
     def __init__(self, stockpoints_echelon, no_suppliers, no_customers,
                  no_stockpoints, no_nodes, no_echelons, connections,
                  unsatisfied_demand, goal, tsl, holding_costs, bo_costs,
-                 initial_inventory, n):
+                 initial_inventory, n, demand_lb, demand_ub, leadtime_lb,
+                 leadtime_ub, demand_dist, leadtime_dist, seed):
         # Supply chain variables:
         self.stockpoints_echelon = stockpoints_echelon
         self.no_suppliers = no_suppliers
@@ -46,7 +47,16 @@ class InventoryEnv(gym.Env):
         self.holding_costs = holding_costs
         self.bo_costs = bo_costs
         self.n = n
-        self.inventory_level = initial_inventory   # inventory level at start
+        self.initial_inventory = initial_inventory   # inventory level at start
+
+        self.demand_lb = demand_lb
+        self.demand_ub = demand_ub
+        self.leadtime_lb = leadtime_lb
+        self.leadtime_ub = leadtime_ub
+
+        self.demand_dist = demand_dist
+        self.leadtime_dist = leadtime_dist
+        np.random.seed(seed)
 
     def _generateDemand(self, t):
         """
@@ -54,33 +64,36 @@ class InventoryEnv(gym.Env):
 
         Writes the demand to the orders table.
         """
-        if self.phase == 'learning':
-            demand = random.randrange(0, 16)
-        elif self.phase == 'greedy':
+        if self.demand_dist == 'poisson':
+            demand_mean = random.randrange(self.demand_lb,
+                                           self.demand_ub + 1)
+            demand = np.random.poisson(demand_mean)
+        elif self.demand_dist == 'normal':
+            demand = random.randrange(self.demand_lb,
+                                      self.demand_ub + 1)
+        elif self.demand_dist == 'policy':
             demandlist = [15, 10, 8, 14, 9, 3, 13, 2, 13, 11, 3, 4, 6, 11, 15,
                           12, 15, 4, 12, 3, 13, 10, 15, 15, 3, 11, 1, 13, 10,
                           10, 0, 0, 8, 0, 14]
             demand = demandlist[t]
-
         retailer_list, customer_list = np.nonzero(self.connections)
         for retailer, customer in zip(retailer_list[self.no_stockpoints:],
                                       customer_list[self.no_stockpoints:]):
             self.O[t, customer, retailer] = demand
 
-    def generateLeadtime(self, t, source, destination):
+    def generateLeadtime(self, t, lowerbound, upperbound, source, destination):
         """
         Generate the leadtime using a predefined distribution.
 
         Returns: Integer
         """
-        # Customers don't have any lead time. Will be defined in connections
-        # table in the future.
+        # Customers don't have any lead time.
         if destination >= self.no_nodes - self.no_customers:
             leadtime = 0
         else:
-            if self.phase == 'learning':
-                leadtime = random.randrange(0, 5)
-            elif self.phase == 'greedy':
+            if self.leadtime_dist == 'normal':
+                leadtime = random.randrange(lowerbound, upperbound + 1)
+            elif self.leadtime_dist == 'policy':
                 leadtimelist = [0, 2, 0, 2, 4, 4, 4, 0, 2, 4, 1, 1, 0, 0, 1, 1,
                                 0, 1, 1, 2, 1, 1, 1, 4, 2, 2, 1, 4, 3, 4, 1, 4,
                                 0, 3, 3, 4]
@@ -103,30 +116,13 @@ class InventoryEnv(gym.Env):
         Returns: Real
         """
         if self.goal == 'minimize_costs':
-            items_backorder = np.sum(self.BO[t])
-            items_hold = np.sum(self.INV[t][1:-1])
-            reward = items_backorder * self.bo_costs + \
-                items_hold * self.holding_costs
+            backorder_costs = np.sum(self.BO[t] * self.bo_costs)
+            holding_costs = np.sum(self.INV[t] * self.holding_costs)
+            reward = backorder_costs + holding_costs
         elif self.goal == 'target_service_level':
             reward = self.tsl
             # HIER MOET LOGICA KOMEN ZODAT DE DEVIATE VAN DE TSL WORDT BEREKEND
         return reward
-
-    def valuefunction(self, t):
-        """
-        Calculate the value function for the future periods.
-
-        Returns: Real
-        """
-        vf = 0
-        for k in range(0, 35-t):
-            for i in range(self.no_suppliers, self.no_stockpoints +
-                           self.no_suppliers):
-                items_hold = self.INV[t, i]
-                items_backorder = self.BO[t, i-1, i]
-                vf = vf + items_hold * self.holding_costs + \
-                    items_backorder * self.bo_costs
-        return vf
 
     def _initializeIP(self, t):
         """
@@ -194,7 +190,8 @@ class InventoryEnv(gym.Env):
 
     def _fulfillOrder(self, t, source, destination, quantity):
         # Draw a random lead time
-        leadtime = self.generateLeadtime(t, source, destination)
+        leadtime = self.generateLeadtime(t, self.leadtime_lb, self.leadtime_ub,
+                                         source, destination)
         # The order is fulfilled immediately for the customer
         # or whenever the leadtime is 0
         # TODO: Leadtime per connection, daarmee kan je voor customers
@@ -216,7 +213,8 @@ class InventoryEnv(gym.Env):
         i_list, j_list = np.nonzero(self.connections)
         # Misschien vervangen door -no_customers?
         # Loop over connections, excluding the customers
-        for i, j in zip(i_list[:-1], j_list[:-1]):
+        # for i, j in zip(i_list[:-1], j_list[:-1]):
+        for i, j in zip(i_list[:self.no_stockpoints], j_list[:self.no_stockpoints]):
             incomingOrders = np.sum(self.O[t], 0)
             self.O[t+1, j, i] += incomingOrders[j] + action[j-1]
             # self.O[t+1, j, i] += incomingOrders[j] + self.policy[t, j-1]
@@ -248,8 +246,12 @@ class InventoryEnv(gym.Env):
             else:
                 self.CIP[t, i-1] = 9
 
-    def step(self, t, action, visualize=False, phase='learning'):
-        self.phase = phase
+    def step(self, t, action, visualize=False):
+        """
+        Execute one step in the RL method.
+
+        input: actionlist, visualize
+        """
         # previous orders are received:
         self._initializeIP(t)
         if visualize:
@@ -282,11 +284,11 @@ class InventoryEnv(gym.Env):
         self.IP = np.copy(self.INV)
         # Coded IP in order to decrease the state space
         self.CIP = np.zeros([self.n+1, self.no_stockpoints])
-
         # Set the initial inventory level as given for every stockpoint
-        for i in range(self.no_suppliers, self.no_stockpoints +
-                       self.no_suppliers):
-            self.INV[0, i] = self.inventory_level
+        self.INV[0] = self.initial_inventory
+        # for i in range(self.no_suppliers, self.no_stockpoints +
+        #                self.no_suppliers):
+        #     self.INV[0, i] = self.inventory_level
         # Assume unlimited production capacity for the suppliers
         for j in range(self.no_suppliers):
             self.INV[0, j] = 10000
@@ -298,13 +300,13 @@ class InventoryEnv(gym.Env):
         # Number of items in transit from stockpoint s to stockpoint s
         self.in_transit = np.copy(self.T)
 
-    # def customSettings(self, table, time, source, destination):
-    #     """
-    #     Add custom settings to the simulation.
+    # # def customSettings(self, table, time, source, destination):
+    # #     """
+    # #     Add custom settings to the simulation.
 
-    #     Can be used to add initial shipments and demand.
-    #     WORK IN PROGRESS
-    #     """
+    # #     Can be used to add initial shipments and demand.
+    # #     WORK IN PROGRESS
+    # #     """
 
         for s in range(1, 4):
             self.O[1, s, s-1] = 4
@@ -360,7 +362,7 @@ class InventoryEnv(gym.Env):
         #                         [1, 3, 2, 3],
         #                         [1, 0, 0, 3]
         #                         ])
-        
+
     def _visualize(self, t, action):
         # Initialize graph
         Graph = nx.DiGraph()
@@ -371,6 +373,8 @@ class InventoryEnv(gym.Env):
         # EVEN TIJDELIJK OMDAT IK NOG GEEN IDEE HEB HOE WEL:
         postionlist = [0, 1, -1, 2, -2, 3, -3, 4, -4, 5, -5]
         # Draw nodes
+        # enumerate() ? 
+        # https://medium.com/better-programming/stop-using-range-in-your-python-for-loops-53c04593f936
         for echelon in range(self.no_echelons):
             for stockpoint in range(self.stockpoints_echelon[echelon]):
                 Graph.add_node(i)
@@ -390,20 +394,23 @@ class InventoryEnv(gym.Env):
                                    order_size=int(self.T[t, source, destination]),
                                    in_transit=in_transit)
                 elif self.connections[source][destination] == 1:
-                    Graph.add_edge(source, destination, order_size=0, in_transit=in_transit)
+                    Graph.add_edge(source, destination, order_size=0,
+                                   in_transit=in_transit)
         for p in pos:
             echelon = pos[p][0]
             height = pos[p][1]
             pos_edges[p] = [echelon, height + 0.005]
         labels_order_size = nx.get_edge_attributes(Graph, 'order_size')
-        nx.draw_networkx_edge_labels(Graph, pos_edges, edge_labels=labels_order_size)
+        nx.draw_networkx_edge_labels(Graph, pos_edges,
+                                     edge_labels=labels_order_size)
         for p in pos:
             echelon = pos[p][0]
             height = pos[p][1]
             pos_edges[p] = [echelon + 0.2, height + 0.005]
         labels_in_transit = nx.get_edge_attributes(Graph, 'in_transit')
-        nx.draw_networkx_edge_labels(Graph, pos_edges, edge_labels=labels_in_transit)
-        
+        nx.draw_networkx_edge_labels(Graph, pos_edges,
+                                     edge_labels=labels_in_transit)
+
         # draw edges for 'in_order' (O)
         for source in range(self.no_nodes):
             for destination in range(self.no_nodes):

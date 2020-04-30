@@ -4,9 +4,10 @@ import numpy as np
 from inventory_env import InventoryEnv
 
 
-def encode_state(state):
+def encode_state(t, state):
     """Encode the state, so we can find it in the q_table."""
-    encoded_state = (state[0] - 1) * 729
+    encoded_state = t * 6561
+    encoded_state += (state[0] - 1) * 729
     encoded_state += (state[1] - 1) * 81
     encoded_state += (state[2] - 1) * 9
     encoded_state += (state[3] - 1)
@@ -40,12 +41,13 @@ class BeerGame:
 
     def __init__(self):
         # RANDOM NOG EVEN WAT AAN VERANDEREN
-        random.seed(15)
+        self.seed = 12
+        random.seed(self.seed)
 
         # Time variables
         self.t = 0                      # current time
         self.current_iteration = 0      # current iteration
-        self.max_iteration = 1000000    # max number of iterations
+        self.max_iteration = 100000    # max number of iterations
         self.alpha = 0.17               # Learning rate
         self.n = 35
 
@@ -95,10 +97,19 @@ class BeerGame:
         # Target service level, required if goal is 'target_service_level'
         self.tsl = 0.95
         # Costs, required if goal is 'minimize_costs'
-        self.holding_costs = 1
-        self.bo_costs = 2
+        self.holding_costs = [0, 1, 1, 1, 1, 0]
+        self.bo_costs = [2, 2, 2, 2, 2, 2]
 
         self.order_policy = 'X+Y'
+        
+        self.demand_dist ='normal'
+        self.demand_lb = 0
+        self.demand_ub = 15
+        
+        self.leadtime_dist = 'normal'
+        self.leadtime_lb = 0
+        self.leadtime_ub = 4
+        
 
         # State-Action variables
         self.possible_states = [1, 2, 3, 4, 5, 6, 7, 8, 9]
@@ -108,7 +119,7 @@ class BeerGame:
         self.no_actions = len(self.possible_actions) ** self.no_stockpoints
 
         # Initialize Q values
-        self.q_table = np.zeros((self.no_actions, self.no_states))
+        self.q_table = np.zeros((self.no_actions, self.no_states * (self.n + 1)))
         # self.q_table = pd.DataFrame(0, index=actions, columns=states)
 
         # Initialize environment
@@ -125,7 +136,14 @@ class BeerGame:
                                 holding_costs=self.holding_costs,
                                 bo_costs=self.bo_costs,
                                 initial_inventory=12,
-                                n=self.n)
+                                n=self.n,
+                                demand_lb=self.demand_lb,
+                                demand_ub=self.demand_ub,
+                                demand_dist=self.demand_dist,
+                                leadtime_lb=self.leadtime_lb,
+                                leadtime_ub=self.leadtime_ub,
+                                leadtime_dist=self.leadtime_dist,
+                                seed=self.seed)
 
     def get_next_action(self, state):
         """Determine the next action to be taken.
@@ -143,7 +161,7 @@ class BeerGame:
         Picks the best action corresponding to the highest Q value
         Returns a list of actions
         """
-        state_e = encode_state(state)
+        state_e = encode_state(self.t, state)
         action = self.q_table[:, state_e].argmax()
         action_d = decode_action(action)
         return action_d
@@ -163,14 +181,15 @@ class BeerGame:
     def update(self, old_state, new_state, action, reward):
         """Update the Q table."""
         action_e = encode_action(action)
-        new_state_e = encode_state(new_state)
-        old_state_e = encode_state(old_state)
+        new_state_e = encode_state(self.t+1, new_state)
+        old_state_e = encode_state(self.t, old_state)
         new_state_q_value = self.get_q(new_state_e)
         self.q_table[action_e, old_state_e] += self.alpha * \
             (-reward + new_state_q_value - self.q_table[action_e, old_state_e])
 
     def iteration(self):
         """Iterate over the simulation."""
+        q_valuelist = []
         totalrewardlist = []
         while self.current_iteration < self.max_iteration:
             self.exploitation_iter = self.exploitation
@@ -183,8 +202,7 @@ class BeerGame:
             while self.t < self.n:
                 action = self.get_next_action(old_state)
                 # Take action and calculate r(t+1)
-                new_state, reward = self.env.step(self.t, action, False,
-                                                  'learning')
+                new_state, reward = self.env.step(self.t, action)
                 self.update(old_state, new_state, action, reward)
                 old_state = new_state
                 self.exploitation_iter += self.exploitation_iter_delta
@@ -193,18 +211,19 @@ class BeerGame:
             # Every 1000 iterations, the greedy policy is performed to show the
             # current performance
             if self.current_iteration % 1000 == 0:
-                totalreward, _, _ = self.perform_greedy_policy(False)
+                totalreward, highest_q , _, _ = self.perform_greedy_policy(False)
                 totalrewardlist.append(int(totalreward))
+                q_valuelist.append(int(highest_q))
                 print(self.current_iteration)
             self.t = 0
             self.current_iteration += 1
-        totalreward, policy, rewardlist = self.perform_greedy_policy(True)
+        totalreward, higehst_q, policy, rewardlist = self.perform_greedy_policy(True)
         totalrewardlist.append(int(totalreward))
         file = open("results.txt", "w+")
         file.write("Total reward list:")
         file.write(str(totalrewardlist))
-        file.write("Q-Table:")
-        file.write(str(self.q_table))
+        file.write("Highest Q-value for initial state:")
+        file.write(str(q_valuelist))
         file.write("Policy:")
         file.write(str(policy))
         file.write("Reward list:")
@@ -227,16 +246,13 @@ class BeerGame:
             action = self.greedy_action(old_state)
             policy.append(action)
             # new_state, reward = self.env.step(self.t, action, final, 'greedy')
-            new_state, reward = self.env.step(self.t, action, False, 'learning')
+            new_state, reward = self.env.step(self.t, action, False)
             rewardlist.append(reward)
             totalreward += reward
             old_state = new_state
             self.t += 1
-        if self.current_iteration == self.max_iteration - 1000:
-            file1 = open("previous_q_table.txt", "w+")
-            file1.write(str(self.q_table))
-            file1.close()
-        return totalreward, policy, rewardlist
+        highest_q = self.get_q(4920)
+        return totalreward, highest_q, policy, rewardlist
 
 
 env = BeerGame()
