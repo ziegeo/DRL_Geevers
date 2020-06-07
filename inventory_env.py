@@ -1,14 +1,43 @@
 """@author: KevinG."""
+import random
 import numpy as np
 import networkx as nx
 import matplotlib.pyplot as plt
 import gym
-import random
+from gym import spaces
 
-# def _seed(self, seed=None):
-#     self.np_random, seed = seeding.np_random(seed)
-#     return [seed]
+def decode_action(action):
+    """Decode the action, so we can use it in the environment."""
+    decoded_action = []
+    decoded_action.append(int(action / 64))
+    action = action % 64
+    decoded_action.append(int(action / 16))
+    action = action % 16
+    decoded_action.append(int(action / 4))
+    action = action % 4
+    action = decoded_action.append(int(action))
+    return decoded_action
 
+def generateLeadTimes(dist, n, lowerbound, upperbound):
+    """
+    Generate the leadtime using a predefined distribution.
+
+    Returns: Integer
+    """
+    leadtimelist = []
+    if dist == 'normal':
+        for t in range(n):
+            leadtimelist.append(random.randrange(lowerbound, upperbound + 1))
+    elif dist == 'dataset1':
+        leadtimelist = [0, 2, 0, 2, 4, 4, 4, 0, 2, 4, 1, 1, 0, 0, 1, 1, 0, 1,
+                        1, 2, 1, 1, 1, 4, 2, 2, 1, 4, 3, 4, 1, 4, 0, 3, 3, 4]
+    elif dist == 'dataset2':
+        leadtimelist = [0,2,0,2,4,4,4,0,2,4,1,1,0,0,1,1,0,1,1,2,1,1,1,4,2,2,1,4,3,4,1,4,0,3,3,4]
+    elif dist == 'dataset3':
+        leadtimelist = [0,4,2,2,0,2,2,1,1,3,0,0,3,3,3,4,1,1,1,3,0,4,2,3,4,1,3,3,3,0,3,4,3,3,0,3]
+    elif dist == 'dataset4':
+        leadtimelist = [0,4,2,2,0,2,2,1,1,3,0,0,3,3,3,4,1,1,1,3,0,4,2,3,4,1,3,3,3,0,3,4,3,3,0,3]
+    return leadtimelist
 
 class InventoryEnv(gym.Env):
     """
@@ -20,18 +49,27 @@ class InventoryEnv(gym.Env):
     """
 
     def __init__(self, stockpoints_echelon, no_suppliers, no_customers,
-                 no_stockpoints, no_nodes, no_echelons, connections,
+                 no_stockpoints, connections,
                  unsatisfied_demand, goal, tsl, holding_costs, bo_costs,
                  initial_inventory, n, demand_lb, demand_ub, leadtime_lb,
-                 leadtime_ub, demand_dist, leadtime_dist, seed):
+                 leadtime_ub, demand_dist, leadtime_dist, no_actions,
+                 no_states, coded, fix, ipfix, method):
         # Supply chain variables:
         self.stockpoints_echelon = stockpoints_echelon
         self.no_suppliers = no_suppliers
         self.no_customers = no_customers
         self.no_stockpoints = no_stockpoints
-        self.no_nodes = no_nodes
-        self.no_echelons = no_echelons
         self.connections = connections
+        self.no_actions = no_actions
+        self.no_states = no_states
+
+        self.determine_potential_actions()
+        self.determine_potential_states()
+
+        # Total number of nodes
+        self.no_nodes = sum(self.stockpoints_echelon)
+        # Total number of echelons, including supplier and customer
+        self.no_echelons = len(self.stockpoints_echelon)
 
         # Unsatisfied demand
         # This can be either 'backorders' or 'lost_sales'
@@ -56,9 +94,30 @@ class InventoryEnv(gym.Env):
 
         self.demand_dist = demand_dist
         self.leadtime_dist = leadtime_dist
-        np.random.seed(seed)
+        
+        self.coded = coded
+        self.fix = fix
+        self.ipfix = ipfix
+        self.method = method
 
-    def _generateDemand(self, t):
+    def determine_potential_actions(self):
+        """
+        Possible actions returned as Gym Space
+        each period
+        """
+        self.action_space = spaces.Discrete(256)
+
+    def determine_potential_states(self):
+        """
+        Based on the mean demand, we determine the maximum and minimum
+        inventory to prevent the environment from reaching unlikely states
+        """
+        # Observation space consists of the current timestep and inventory positions of every echelon
+        self.observation_space = spaces.Box(np.array([0,-30,-30,-30,-30]), 
+                                            np.array([34,30,30,30,30]), 
+                                            dtype=np.int32)
+        
+    def _generate_demand(self, t):
         """
         Generate the demand using a predefined distribution.
 
@@ -71,38 +130,27 @@ class InventoryEnv(gym.Env):
         elif self.demand_dist == 'normal':
             demand = random.randrange(self.demand_lb,
                                       self.demand_ub + 1)
-        elif self.demand_dist == 'policy':
+        elif self.demand_dist == 'dataset1':
             demandlist = [15, 10, 8, 14, 9, 3, 13, 2, 13, 11, 3, 4, 6, 11, 15,
                           12, 15, 4, 12, 3, 13, 10, 15, 15, 3, 11, 1, 13, 10,
                           10, 0, 0, 8, 0, 14]
+            demand = demandlist[t]
+        elif self.demand_dist == 'dataset2':
+            demandlist = [5,14,14,13,2,9,5,9,14,14,12,7,5,1,13,3,12,4,0,15,11,10,6,0,6,6,5,11,8,4,4,12,13,8,12]
+            demand = demandlist[t]
+        elif self.demand_dist == 'dataset3':
+            demandlist = [15, 10, 8, 14, 9, 3, 13, 2, 13, 11, 3, 4, 6, 11, 15,
+                          12, 15, 4, 12, 3, 13, 10, 15, 15, 3, 11, 1, 13, 10,
+                          10, 0, 0, 8, 0, 14]
+            demand = demandlist[t]
+        elif self.demand_dist == 'dataset4':
+            demandlist = [13,13,12,10,14,13,13,10,2,12,11,9,11,3,7,6,12,12,3,10,3,9,4,15,12,7,15,5,1,15,11,9,14,0,4]
             demand = demandlist[t]
         retailer_list, customer_list = np.nonzero(self.connections)
         for retailer, customer in zip(retailer_list[self.no_stockpoints:],
                                       customer_list[self.no_stockpoints:]):
             self.O[t, customer, retailer] = demand
 
-    def generateLeadtime(self, t, lowerbound, upperbound, source, destination):
-        """
-        Generate the leadtime using a predefined distribution.
-
-        Returns: Integer
-        """
-        # Customers don't have any lead time.
-        if destination >= self.no_nodes - self.no_customers:
-            leadtime = 0
-        else:
-            if self.leadtime_dist == 'normal':
-                leadtime = random.randrange(lowerbound, upperbound + 1)
-            elif self.leadtime_dist == 'policy':
-                leadtimelist = [0, 2, 0, 2, 4, 4, 4, 0, 2, 4, 1, 1, 0, 0, 1, 1,
-                                0, 1, 1, 2, 1, 1, 1, 4, 2, 2, 1, 4, 3, 4, 1, 4,
-                                0, 3, 3, 4]
-                leadtime = leadtimelist[t]
-        return leadtime
-
-# def transition(self, x, a, d):
-#     m = self.max
-#     return max(min(x + a, m) - d, 0)
 
     def reward(self, t):
         """
@@ -181,7 +229,11 @@ class InventoryEnv(gym.Env):
                     if inventory >= backorder:
                         # Dit vind ik heel onlogisch, maar voorzover ik nu kan zien
                         # in de IPs komt de backorder nooit aan.
-                        self.INV[t, j] -= backorder
+                        # Nu wel gedaan dmv fix
+                        if self.fix:
+                            self._fulfillOrder(t, j, i, backorder)
+                        else:
+                            self.INV[t, j] -= backorder
                         self.BO[t, i, j] = 0
                     # Else, fulfill the entire inventory
                     else:
@@ -189,9 +241,11 @@ class InventoryEnv(gym.Env):
                         self.BO[t, i, j] -= inventory
 
     def _fulfillOrder(self, t, source, destination, quantity):
-        # Draw a random lead time
-        leadtime = self.generateLeadtime(t, self.leadtime_lb, self.leadtime_ub,
-                                         source, destination)
+        # Customers don't have any lead time.
+        if destination >= self.no_nodes - self.no_customers:
+            leadtime = 0
+        else:
+            leadtime = self.leadTimes[t]
         # The order is fulfilled immediately for the customer
         # or whenever the leadtime is 0
         # TODO: Leadtime per connection, daarmee kan je voor customers
@@ -211,40 +265,48 @@ class InventoryEnv(gym.Env):
     def _placeOutgoingOrder(self, t, action):
         # Retrieve all nodes with a connection to each other
         i_list, j_list = np.nonzero(self.connections)
-        # Misschien vervangen door -no_customers?
         # Loop over connections, excluding the customers
-        # for i, j in zip(i_list[:-1], j_list[:-1]):
+        incomingOrders = np.sum(self.O[t], 0)
         for i, j in zip(i_list[:self.no_stockpoints], j_list[:self.no_stockpoints]):
-            incomingOrders = np.sum(self.O[t], 0)
-            self.O[t+1, j, i] += incomingOrders[j] + action[j-1]
-            # self.O[t+1, j, i] += incomingOrders[j] + self.policy[t, j-1]
+            self.O[t+1, j, i] += incomingOrders[j] + action[j-self.no_customers]
 
-    # De volgende function kan beter in de case specific file, aangezien dit
-    # natuurlijk heel erg afhangt van je eigen case
     def _codeState(self, t):
-        BO_Echelon = np.sum(self.BO[t], 0)
+        bo_echelon = np.sum(self.BO[t], 0)
+        if self.ipfix:
+            in_transit_echelon = np.sum(self.in_transit[t], 0)
+        CIP = np.zeros([self.no_stockpoints + 1], dtype=int)
+        CIP[0] = t+1
         for i in range(self.no_suppliers, self.no_stockpoints +
                        self.no_suppliers):
-            self.IP[t, i] = self.INV[t, i] - BO_Echelon[i]
-            # DIT ZAL VAST MAKKELIJKER KUNNEN:
-            if self.IP[t, i] < -6:
-                self.CIP[t, i-1] = 1
-            elif self.IP[t, i] < -3:
-                self.CIP[t, i-1] = 2
-            elif self.IP[t, i] < 0:
-                self.CIP[t, i-1] = 3
-            elif self.IP[t, i] < 3:
-                self.CIP[t, i-1] = 4
-            elif self.IP[t, i] < 6:
-                self.CIP[t, i-1] = 5
-            elif self.IP[t, i] < 10:
-                self.CIP[t, i-1] = 6
-            elif self.IP[t, i] < 15:
-                self.CIP[t, i-1] = 7
-            elif self.IP[t, i] < 20:
-                self.CIP[t, i-1] = 8
+            if self.ipfix:
+                self.IP[t, i] = self.INV[t, i] - bo_echelon[i] + in_transit_echelon[i]
             else:
-                self.CIP[t, i-1] = 9
+                self.IP[t, i] = self.INV[t, i] - bo_echelon[i]
+            if self.coded:
+                if self.IP[t, i] < -6:
+                    CIP[i] = 1
+                elif self.IP[t, i] < -3:
+                    CIP[i] = 2
+                elif self.IP[t, i] < 0:
+                    CIP[i] = 3
+                elif self.IP[t, i] < 3:
+                    CIP[i] = 4
+                elif self.IP[t, i] < 6:
+                    CIP[i] = 5
+                elif self.IP[t, i] < 10:
+                    CIP[i] = 6
+                elif self.IP[t, i] < 15:
+                    CIP[i] = 7
+                elif self.IP[t, i] < 20:
+                    CIP[i] = 8
+                else:
+                    CIP[i] = 9
+            else:
+                CIP[i] = self.IP[t, i]
+        if self.method == 'Q-learning':
+            return CIP[1:]
+        else:
+            return CIP
 
     def step(self, t, action, visualize=False):
         """
@@ -256,7 +318,7 @@ class InventoryEnv(gym.Env):
         self._initializeIP(t)
         if visualize:
             self._visualize(t, action="0. IP")
-        self._generateDemand(t)
+        self._generate_demand(t)
         if t < (self.n - 1):
             self._receiveIncomingDelivery(t)
             if visualize:
@@ -264,11 +326,11 @@ class InventoryEnv(gym.Env):
         self._receiveIncomingOrders(t)
         if visualize:
             self._visualize(t, action="2. Demand")
-        self._placeOutgoingOrder(t, action)
-        self._codeState(t)
+        action_d = decode_action(action)
+        self._placeOutgoingOrder(t, action_d)
+        CIP = self._codeState(t)
         reward = self.reward(t)
-        # valuefunction = self.valuefunction(t)
-        return self.CIP[t], reward
+        return CIP, -reward, 0, True
 
     def reset(self):
         """
@@ -277,91 +339,56 @@ class InventoryEnv(gym.Env):
         Has to be executed at the beginning of every iteration.
         """
         # Amount of inventory of echelon s in time t
-        self.INV = np.zeros([self.n+1, self.no_nodes])
+        self.INV = np.zeros([self.n+1, self.no_nodes], dtype=int)
         # Amount of backorders of echelon s+1 to echelon s in time t
-        self.BO = np.zeros([self.n+1, self.no_nodes, self.no_nodes])
+        self.BO = np.zeros([self.n+1, self.no_nodes, self.no_nodes], dtype=int)
         # Inventory position (inventory-backorders) of echelon s in time t
         self.IP = np.copy(self.INV)
-        # Coded IP in order to decrease the state space
-        self.CIP = np.zeros([self.n+1, self.no_stockpoints])
         # Set the initial inventory level as given for every stockpoint
         self.INV[0] = self.initial_inventory
-        # for i in range(self.no_suppliers, self.no_stockpoints +
-        #                self.no_suppliers):
-        #     self.INV[0, i] = self.inventory_level
         # Assume unlimited production capacity for the suppliers
         for j in range(self.no_suppliers):
             self.INV[0, j] = 10000
-
         # Number of items ordered from stockpoint s to stockpoint s
-        self.O = np.zeros([self.n+1, self.no_nodes, self.no_nodes])
+        self.O = np.zeros([self.n+1, self.no_nodes, self.no_nodes], dtype=int)
         # Number of items arriving in time t from stockpoint s to stockpoint s
-        self.T = np.zeros([self.n+1, self.no_nodes, self.no_nodes])
+        self.T = np.copy(self.O)
         # Number of items in transit from stockpoint s to stockpoint s
-        self.in_transit = np.copy(self.T)
-
-    # # def customSettings(self, table, time, source, destination):
-    # #     """
-    # #     Add custom settings to the simulation.
-
-    # #     Can be used to add initial shipments and demand.
-    # #     WORK IN PROGRESS
-    # #     """
-
-        for s in range(1, 4):
-            self.O[1, s, s-1] = 4
-        # Set initial shipment as given BEERGAME SPECIFIC
-        self.in_transit[0, 3, 4] = 8
-        self.in_transit[1, 3, 4] = 4
+        self.in_transit = np.copy(self.O)
+        
+        self.leadTimes = generateLeadTimes(self.leadtime_dist, self.n, 
+                                           self.leadtime_lb, self.leadtime_ub)
+        
+        #Custom BeerGame Settings. Kloppen deze?
+        self.O[1, 1, 0] = 4
+        self.O[1, 2, 1] = 4
+        self.O[1, 3, 2] = 4
+        self.in_transit[0,3,4] = 8
+        self.in_transit[1,3,4] = 4
+        self.in_transit[0,2,3] = 4
+        self.in_transit[1,2,3] = 4
+        self.in_transit[0,1,2] = 4
+        self.in_transit[1,1,2] = 4
+        self.in_transit[0,0,1] = 4
+        self.in_transit[1,0,1] = 4
         self.T[0, 3, 4] = 4
         self.T[1, 3, 4] = 4
-        self.in_transit[0, 2, 3] = 4
-        self.in_transit[1, 2, 3] = 4
-        self.T[1, 2, 3] = 4
-        self.in_transit[0, 1, 2] = 4
-        self.in_transit[1, 1, 2] = 4
-        self.T[1, 1, 2] = 4
-        self.in_transit[0, 0, 1] = 4
-        self.in_transit[1, 0, 1] = 4
-        self.T[1, 0, 1] = 4
+        self.T[1, 2, 3] = 4   
+        self.T[1, 1, 2] = 4   
+        self.T[1, 0, 1] = 4   
+        self.state = self._codeState(0)
+        if self.method != 'Q-learning':
+            self.state[0] -= 1
+        return self.state
 
-        # Set policy as given in the paper
-        # self.policy = np.array([[1, 2, 2, 2],
-        #                         [3, 3, 1, 3],
-        #                         [0, 2, 0, 3],
-        #                         [2, 0, 0, 1],
-        #                         [0, 2, 0, 1],
-        #                         [0, 1, 1, 2],
-        #                         [2, 1, 1, 0],
-        #                         [0, 1, 1, 2],
-        #                         [3, 2, 1, 3],
-        #                         [0, 1, 1, 2],
-        #                         [0, 1, 1, 2],
-        #                         [1, 2, 3, 3],
-        #                         [1, 2, 3, 3],
-        #                         [3, 2, 1, 1],
-        #                         [3, 0, 0, 0],
-        #                         [0, 3, 0, 0],
-        #                         [1, 1, 1, 3],
-        #                         [0, 3, 0, 1],
-        #                         [0, 0, 0, 0],
-        #                         [2, 3, 2, 3],
-        #                         [3, 3, 3, 2],
-        #                         [3, 2, 3, 0],
-        #                         [1, 1, 3, 2],
-        #                         [1, 1, 3, 2],
-        #                         [1, 1, 2, 1],
-        #                         [0, 1, 2, 1],
-        #                         [0, 1, 1, 2],
-        #                         [3, 3, 2, 2],
-        #                         [0, 2, 3, 1],
-        #                         [2, 1, 1, 0],
-        #                         [1, 2, 2, 2],
-        #                         [3, 3, 0, 3],
-        #                         [2, 1, 1, 3],
-        #                         [1, 3, 2, 3],
-        #                         [1, 0, 0, 3]
-        #                         ])
+    def customSettings(self, table_name, time, source, destination, value):
+        """
+        Add custom settings to the simulation.
+
+        Can be used to add initial shipments and demand.
+        """
+        table = eval(table_name)
+        table[time, source, destination] = value
 
     def _visualize(self, t, action):
         # Initialize graph
@@ -373,13 +400,12 @@ class InventoryEnv(gym.Env):
         # EVEN TIJDELIJK OMDAT IK NOG GEEN IDEE HEB HOE WEL:
         postionlist = [0, 1, -1, 2, -2, 3, -3, 4, -4, 5, -5]
         # Draw nodes
-        # enumerate() ? 
+        # enumerate() ?
         # https://medium.com/better-programming/stop-using-range-in-your-python-for-loops-53c04593f936
         for echelon in range(self.no_echelons):
             for stockpoint in range(self.stockpoints_echelon[echelon]):
                 Graph.add_node(i)
-                label[i] = int(self.INV[t, i])
-                #label[i] = i
+                label[i] = self.INV[t, i]
                 pos[i] = [echelon, 0.1*postionlist[stockpoint]]
                 i += 1
         nx.draw(Graph, pos, edgelist=[])
@@ -388,10 +414,10 @@ class InventoryEnv(gym.Env):
         # Draw edges for 'order_size' (T)
         for source in range(self.no_nodes):
             for destination in range(self.no_nodes):
-                in_transit = int(self.in_transit[t, source, destination])
+                in_transit = self.in_transit[t, source, destination]
                 if self.T[t, source, destination] > 0:
                     Graph.add_edge(source, destination,
-                                   order_size=int(self.T[t, source, destination]),
+                                   order_size=self.T[t, source, destination],
                                    in_transit=in_transit)
                 elif self.connections[source][destination] == 1:
                     Graph.add_edge(source, destination, order_size=0,
@@ -414,11 +440,11 @@ class InventoryEnv(gym.Env):
         # draw edges for 'in_order' (O)
         for source in range(self.no_nodes):
             for destination in range(self.no_nodes):
-                backorder = int(self.BO[t, source, destination])
+                backorder = self.BO[t, source, destination]
                 if self.O[t, source, destination] > 0:
                     Graph.add_edge(source, destination,
-                                    in_order=int(self.O[t, source, destination]),
-                                    backorder=backorder)
+                                   in_order=self.O[t, source, destination],
+                                   backorder=backorder)
                 elif self.connections[destination][source] == 1:
                     Graph.add_edge(source, destination, in_order=0, backorder=backorder)
 
