@@ -1,0 +1,19 @@
+BeerGame:
+GroteActies -> Divide1000:
+    False:
+        SmallNet    Done
+        LargeNet    Done
+    True:
+        SmallNet    Done
+        LargeNet    Done
+KleineActies: -> Mss toch reward1000>
+    False:
+        SmallNet    Done
+        LargeNet
+    True:
+        SmallNet
+        LargeNet
+
+Divergent:
+4 Layers            Done
+2 Layers            Done
