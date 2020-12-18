@@ -50,7 +50,7 @@ class MLPDiscreteActor(Actor):
         super().__init__()
         # self.pi_net = mlp([obs_dim] + list(hidden_sizes) + [act_dim], activation)
         self.pi_net = mlp([obs_dim] + list(hidden_sizes) + [act_dim], activation, output_activation = nn.Softmax)
-#         # self.feasible_actions = feasible_actions
+
     
     def _distribution(self, obs):
         '''
@@ -59,25 +59,7 @@ class MLPDiscreteActor(Actor):
         '''
         probs = self.pi_net(obs)
         return Categorical(probs = probs)
-#         # setup_setting = [(int(obs[i][2]), int(obs[i][3])) for i in range(len(obs))]
-#         # feasible_indicators = [self.feasible_actions[setup_setting[i]] for i in range(len(obs))]
-        
-# #        # obs = (batch_size, num_inputs)
-# #        hidden = self.pi_net_shared(obs)
-# #        # hidden = (batch_size, num_hidden)
-# #        logits_speed = self.pi_net_speed(hidden)  # Coul be just one layer
-# #        logits_speed = logits_speed.cumsum(-1)
-# #        # logits_speed = (batch_size, 5)
-# #        logits_direction = self.pi_net_direction(hidden)
-# #        # logits_direction = (batch_size, 2)
-# #        # logits_speed[:, :, None]  # (batch_size, 5, 1)
-# #        # logits_speed.unsqueeze(-1)
-# #        # logits_direction[:, None, :]  # (batch_size, 1, 2)
-# #        
-# #        # Broadcasting
-# #        logits_structured = logits_speed[:, :, None] + logits_direction[:, None, :]  # (batch_size, 5, 2)
-# #        logits = logits_structured.view(logits_structured.size(0), -1)  # (batch_size, 10)
-    
+
     def _log_prob_from_distribution(self, pi, act):
         '''
         Returns the log probability of an action based on the distribution

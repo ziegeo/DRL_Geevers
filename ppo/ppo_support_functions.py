@@ -79,28 +79,37 @@ def mlp(sizes, activation, output_activation=nn.Identity):
         layers += [nn.Linear(sizes[j], sizes[j+1]), act]
     return nn.Sequential(*layers)
 
-def discount_cumsum(x, discount_factor):
+def discount_cumsum(x, discount_factor, horizon):
     """
     formula from rllab for computing discounted cumulative sums of vectors.
-    input: 
-        vector x, 
-        [x0, 
-         x1, 
-         x2]
+    input:  
+        [x0, x1, x2]
     output:
         [x0 + discount * x1 + discount^2 * x2,  
          x1 + discount * x2,
          x2]
     """
+
+    #OLD:
     return scipy.signal.lfilter([1], [1, float(-discount_factor)], x[::-1], axis=0)[::-1]
+
+    #NEW:
+    # for i in range(round(len(x)/2)):
+    #     if i == 0 :
+    #         array = x[horizon+i::-1]
+    #     else:
+    #         array = x[horizon+i:i-1:-1]
+    #     x[i] = scipy.signal.lfilter([1], [1, float(-discount_factor)], array, axis=0)[::-1][0]
+    # return x
+
 
 def scale_input(env, state):
     '''
     Scale the input data, such that it is between min and max
     '''
     # scaled_input = state / env.observation_space.high
-    min = -1
-    max = 1
+    min = env.case.state_scale_low
+    max = env.case.state_scale_high
     scaled_input = ((max - min) *((state - env.observation_space.low)/(env.observation_space.high - env.observation_space.low))) + min
     return scaled_input
 
@@ -199,10 +208,8 @@ class SimulationBuffer():
                                     #  'demand_buf': self.compute_confidence_interval(self.demand_buf)}
         return self.confidence_intervals
     
-    def fill_buffer(self, env, model, dataset):
+    def fill_buffer(self, env, model):
         for i in range(self.simulation_runs):
-            if env.case.__class__.__name__ == "BeerGame":
-                env.demand_dist, env.leadtime_dist = dataset, dataset
             o = env.reset()
             with torch.no_grad():
                 totalreward, totalholdingcosts, totalbackordercosts = 0, 0, 0
@@ -216,13 +223,9 @@ class SimulationBuffer():
                         totalreward += r
                     o = next_o
                 self.store(totalreward)
-                # print('holding')
-                # print(totalholdingcosts)
-                # print('backorder')
-                # print(totalbackordercosts)
             self.next_run()
 
-def evaluate_policy(ac, env, dataset, simulation_runs, simulation_length, warmup_period, no_improvement_count, 
+def evaluate_policy(ac, env, simulation_runs, simulation_length, warmup_period, no_improvement_count, 
                     best_evaluation_mean, best_evaluation_upperbound):
     '''
     This function simulates the current policy of the neural network for x simulation runs and x simulation length.
@@ -231,7 +234,7 @@ def evaluate_policy(ac, env, dataset, simulation_runs, simulation_length, warmup
     '''
     # instantiate simulation buffer, fill it, determine confidence intervals
     simbuffer = SimulationBuffer(simulation_length, simulation_runs, warmup_period)
-    simbuffer.fill_buffer(env, ac, dataset)
+    simbuffer.fill_buffer(env, ac)
     # mean_costs = simbuffer.cost_buf[]
     evaluation = simbuffer.determine_confidence_intervals()
     mean_costs = evaluation['cost'][0]

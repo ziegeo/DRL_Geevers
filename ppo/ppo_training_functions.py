@@ -79,7 +79,8 @@ def ppo_learning(env, benchmark, experiment_name, run_name,
         observed = ret
         loss_v = torch.nn.functional.mse_loss(predictions, observed) #((predictions - observed) ** 2).mean()
         return loss_v
-    
+
+
     def update():
         ''' This function updates the network weights'''
         buffer.get()
@@ -152,8 +153,6 @@ def ppo_learning(env, benchmark, experiment_name, run_name,
     
     # start iterations
     for iteration in range(ppo_iterations):
-        if env.case.__class__.__name__ == "BeerGame":
-            env.leadtime_dist, env.demand_dist = 'uniform', 'uniform'
         # reset buffer every iteration
         buffer.reset_buffer()
         o = env.reset()
@@ -172,21 +171,13 @@ def ppo_learning(env, benchmark, experiment_name, run_name,
                         min = env.action_min
                         action_clip = np.clip(a[0], low, high)
                         for i in range(len(action_clip)):
-                            if high[0] == 1:
-                                action_clip[i] = ((action_clip[i] - low[i]) / (high[i]-low[i])) * ((max[i] - min[i])) + min[i]
-                            else:
-                                action_clip[i] = action_clip[i] * (max[i] / high[i])
+                            action_clip[i] = ((action_clip[i] - low[i]) / (high[i]-low[i])) * ((max[i] - min[i])) + min[i]
                         firstaction = [round(num) for num in action_clip]
-                    elif isinstance(env.action_space, Discrete):
-                        firstaction = a
-                logger.store(VVals = v, TimeStepReturn = r, Entropy=entropy, Stddev=stddev, HoldingCosts=info_dict['holding_costs'], BackorderCosts=info_dict['backorder_costs'])
+                logger.store(VVals = v, TimeStepReturn = r, Entropy=entropy, Stddev=stddev, HoldingCosts=info_dict['holding_costs'], BackorderCosts=info_dict['backorder_costs'], PenaltyCosts=info_dict['penalty_costs'])
             
             # save and log observation, action, reward (scaled by number of iterations), value, logprob, entropy
             buffer.store(o, a, r/ppo_buffer_length, v, logp, entropy)
 
-            # if d:  
-            #     next_o = env.reset()
-            #     print(next_o)
             # update obs (very important!)
             o = next_o
             
@@ -205,40 +196,16 @@ def ppo_learning(env, benchmark, experiment_name, run_name,
         # perform PPO update
         update()
         
-        # buffer.get()
-        # logger.store(ReturnBuffer = )
         # check if learning can be stopped
         if iteration % ppo_evaluation_steps == 0:
             print('evaluating policy at iteration {}'.format(iteration))
-            mean, best_evaluation_mean, best_evaluation_upperbound, no_improvement_count = evaluate_policy(ac, env, 1,
+            mean, best_evaluation_mean, best_evaluation_upperbound, no_improvement_count = evaluate_policy(ac, env,
                                                                                                      ppo_simulation_runs, 
                                                                                                      ppo_simulation_length,
                                                                                                      ppo_warmup_period, 
                                                                                                      no_improvement_count, 
                                                                                                      best_evaluation_mean,
-                                                                                                     best_evaluation_upperbound)
-            if env.case.__class__.__name__ == "BeerGame":
-                mean2, _, _, _ = evaluate_policy(ac, env, 2, 
-                                                ppo_simulation_runs, 
-                                                ppo_simulation_length,
-                                                ppo_warmup_period, 
-                                                no_improvement_count, 
-                                                best_evaluation_mean,
-                                                best_evaluation_upperbound)
-                mean3, _, _, _ = evaluate_policy(ac, env, 3, 
-                                                ppo_simulation_runs, 
-                                                ppo_simulation_length,
-                                                ppo_warmup_period, 
-                                                no_improvement_count, 
-                                                best_evaluation_mean,
-                                                best_evaluation_upperbound)
-                mean4, _, _, _ = evaluate_policy(ac, env, 4, 
-                                                ppo_simulation_runs, 
-                                                ppo_simulation_length,
-                                                ppo_warmup_period, 
-                                                no_improvement_count, 
-                                                best_evaluation_mean,
-                                                best_evaluation_upperbound)                                                                                                                                                                                                                                                                                                              
+                                                                                                     best_evaluation_upperbound)                                                                                                                                                                                                                                                                                                           
         
         # log info about iteration: iteration number, reward per time step, v values, policy loss, value loss, 
         # entropy, time taken per iteration
@@ -256,6 +223,7 @@ def ppo_learning(env, benchmark, experiment_name, run_name,
         backorder_stats     = logger.log_iteration_tabular('BackorderCosts', with_min_max = True)
         # setup_stats         = logger.log_iteration_tabular('Setups', with_min_max = True)
         holding_stats     = logger.log_iteration_tabular('HoldingCosts', with_min_max = True)
+        penalty_stats     = logger.log_iteration_tabular('PenaltyCosts', with_min_max = True)
         logger.log_iteration_tabular('Time', time.time()-start_time)
         logger.dump_tabular()
         
@@ -267,16 +235,13 @@ def ppo_learning(env, benchmark, experiment_name, run_name,
         writer.add_scalar('1PPOLearning/Entropy', entropy_stats[0], iteration)
         writer.add_scalar('1PPOLearning/Stddev', stddev_stats[0][0], iteration)
         writer.add_scalar('1PPOLearning/Dataset1', mean, iteration)
-        if env.case.__class__.__name__ == "BeerGame":
-            writer.add_scalar('1PPOLearning/Dataset2', mean2, iteration)
-            writer.add_scalar('1PPOLearning/Dataset3', mean3, iteration)
-            writer.add_scalar('1PPOLearning/Dataset4', mean4, iteration)
         writer.add_scalar('2KPIs/ValueFirstState', value_firststate, iteration)
         if isinstance(env.action_space, Box):
             for i in range(env.action_space.shape[0]):
                 writer.add_scalar('2KPIs/Action {}'.format(i), firstaction[i], iteration)
         writer.add_scalar('2KPIs/BackorderCosts', backorder_stats[0], iteration)
         writer.add_scalar('2KPIs/HoldingCosts', holding_stats[0], iteration)
+        writer.add_scalar('2KPIs/PenaltyCosts', penalty_stats[0], iteration)
         
         # print every x iterations the progress, write histograms to tensorboard, save model (don't overwrite)
         if ((iteration + 1) % ppo_save_freq == 0) or (iteration == ppo_iterations - 1) or (iteration == 0): 
@@ -295,9 +260,9 @@ def ppo_learning(env, benchmark, experiment_name, run_name,
                 writer.add_histogram('InputValues/TotalBO', buffer.obs_buf[:, 1], iteration)
                 writer.add_histogram('InputValues/Stockpoint 1', buffer.obs_buf[:, 2], iteration)
                 writer.add_histogram('InputValues/Stockpoint 2', buffer.obs_buf[:, 3], iteration)
+                writer.add_histogram('InputValues/Stockpoint 3', buffer.obs_buf[:, 4], iteration)
+                writer.add_histogram('InputValues/Stockpoint 4', buffer.obs_buf[:, 5], iteration)
                 if env.case.__class__.__name__ == "BeerGame":
-                    writer.add_histogram('InputValues/Stockpoint 3', buffer.obs_buf[:, 4], iteration)
-                    writer.add_histogram('InputValues/Stockpoint 4', buffer.obs_buf[:, 5], iteration)
                     writer.add_histogram('InputValues/Backorders 1', buffer.obs_buf[:, 6], iteration)
                     writer.add_histogram('InputValues/Backorders 2', buffer.obs_buf[:, 7], iteration)
                     writer.add_histogram('InputValues/Backorders 3', buffer.obs_buf[:, 8], iteration)
@@ -315,23 +280,57 @@ def ppo_learning(env, benchmark, experiment_name, run_name,
                     writer.add_histogram('InputValues/Transport3', buffer.obs_buf[:, 20], iteration)
                     writer.add_histogram('InputValues/Transport4', buffer.obs_buf[:, 21], iteration)
                 elif env.case.__class__.__name__ == "Divergent":
-                    writer.add_histogram('InputValues/Stockpoint 3', buffer.obs_buf[:, 4], iteration)
-                    writer.add_histogram('InputValues/Stockpoint 4', buffer.obs_buf[:, 5], iteration)
                     writer.add_histogram('InputValues/Backorders 2', buffer.obs_buf[:, 6], iteration)
                     writer.add_histogram('InputValues/Backorders 3', buffer.obs_buf[:, 7], iteration)
                     writer.add_histogram('InputValues/Backorders 4', buffer.obs_buf[:, 8], iteration)
-                    writer.add_histogram('InputValues/PreviousDemand 1', buffer.obs_buf[:, 9], iteration)
-                    writer.add_histogram('InputValues/PreviousDemand 2', buffer.obs_buf[:, 10], iteration)
-                    writer.add_histogram('InputValues/PreviousDemand 3', buffer.obs_buf[:, 11], iteration)
-                    writer.add_histogram('InputValues/PreviousDemand 4', buffer.obs_buf[:, 12], iteration)
-                    # writer.add_histogram('InputValues/InTransit1', buffer.obs_buf[:, 13], iteration)
-                    # writer.add_histogram('InputValues/InTransit2', buffer.obs_buf[:, 14], iteration)
-                    # writer.add_histogram('InputValues/InTransit3', buffer.obs_buf[:, 15], iteration)
-                    # writer.add_histogram('InputValues/InTransit4', buffer.obs_buf[:, 16], iteration)
-                    # writer.add_histogram('InputValues/Transport1', buffer.obs_buf[:, 17], iteration)
-                    # writer.add_histogram('InputValues/Transport2', buffer.obs_buf[:, 18], iteration)
-                    # writer.add_histogram('InputValues/Transport3', buffer.obs_buf[:, 19], iteration)
-                    # writer.add_histogram('InputValues/Transport4', buffer.obs_buf[:, 20], iteration)
+                    writer.add_histogram('InputValues/InTransit 1', buffer.obs_buf[:, 9], iteration)
+                    writer.add_histogram('InputValues/InTransit 2', buffer.obs_buf[:, 10], iteration)
+                    writer.add_histogram('InputValues/InTransit 3', buffer.obs_buf[:, 11], iteration)
+                    writer.add_histogram('InputValues/InTransit 4', buffer.obs_buf[:, 12], iteration)
+                elif env.case.__class__.__name__ == "General":
+                    writer.add_histogram('InputValues/Stockpoint 5', buffer.obs_buf[:, 6], iteration)
+                    writer.add_histogram('InputValues/Stockpoint 6', buffer.obs_buf[:, 7], iteration)
+                    writer.add_histogram('InputValues/Stockpoint 7', buffer.obs_buf[:, 8], iteration)
+                    writer.add_histogram('InputValues/Stockpoint 8', buffer.obs_buf[:, 9], iteration)
+                    writer.add_histogram('InputValues/Stockpoint 9', buffer.obs_buf[:, 10], iteration)
+                    writer.add_histogram('InputValues/Backorders 04 08', buffer.obs_buf[:, 11], iteration)
+                    writer.add_histogram('InputValues/Backorders 04 09', buffer.obs_buf[:, 12], iteration)
+                    writer.add_histogram('InputValues/Backorders 04 10', buffer.obs_buf[:, 13], iteration)
+                    writer.add_histogram('InputValues/Backorders 05 08', buffer.obs_buf[:, 14], iteration)
+                    writer.add_histogram('InputValues/Backorders 05 09', buffer.obs_buf[:, 15], iteration)
+                    writer.add_histogram('InputValues/Backorders 05 10', buffer.obs_buf[:, 16], iteration)
+                    writer.add_histogram('InputValues/Backorders 05 11', buffer.obs_buf[:, 17], iteration)
+                    writer.add_histogram('InputValues/Backorders 06 11', buffer.obs_buf[:, 18], iteration)
+                    writer.add_histogram('InputValues/Backorders 06 12', buffer.obs_buf[:, 19], iteration)
+                    writer.add_histogram('InputValues/Backorders 07 08', buffer.obs_buf[:, 20], iteration)
+                    writer.add_histogram('InputValues/Backorders 07 09', buffer.obs_buf[:, 21], iteration)
+                    writer.add_histogram('InputValues/Backorders 07 10', buffer.obs_buf[:, 22], iteration)
+                    writer.add_histogram('InputValues/Backorders 07 11', buffer.obs_buf[:, 23], iteration)
+                    writer.add_histogram('InputValues/Backorders 07 12', buffer.obs_buf[:, 24], iteration)
+                    writer.add_histogram('InputValues/Backorders 08 13', buffer.obs_buf[:, 25], iteration)
+                    writer.add_histogram('InputValues/Backorders 09 14', buffer.obs_buf[:, 26], iteration)
+                    writer.add_histogram('InputValues/Backorders 10 15', buffer.obs_buf[:, 27], iteration)
+                    writer.add_histogram('InputValues/Backorders 11 16', buffer.obs_buf[:, 28], iteration)
+                    writer.add_histogram('InputValues/Backorders 12 17', buffer.obs_buf[:, 29], iteration)
+                    writer.add_histogram('InputValues/In Transit 00 04', buffer.obs_buf[:, 30], iteration)
+                    writer.add_histogram('InputValues/In Transit 01 05', buffer.obs_buf[:, 31], iteration)
+                    writer.add_histogram('InputValues/In Transit 02 06', buffer.obs_buf[:, 32], iteration)
+                    writer.add_histogram('InputValues/In Transit 03 07', buffer.obs_buf[:, 33], iteration)
+                    writer.add_histogram('InputValues/In Transit 04 08', buffer.obs_buf[:, 34], iteration)
+                    writer.add_histogram('InputValues/In Transit 04 09', buffer.obs_buf[:, 35], iteration)
+                    writer.add_histogram('InputValues/In Transit 04 10', buffer.obs_buf[:, 36], iteration)
+                    writer.add_histogram('InputValues/In Transit 05 08', buffer.obs_buf[:, 37], iteration)
+                    writer.add_histogram('InputValues/In Transit 05 09', buffer.obs_buf[:, 38], iteration)
+                    writer.add_histogram('InputValues/In Transit 05 10', buffer.obs_buf[:, 39], iteration)
+                    writer.add_histogram('InputValues/In Transit 05 11', buffer.obs_buf[:, 40], iteration)
+                    writer.add_histogram('InputValues/In Transit 06 11', buffer.obs_buf[:, 41], iteration)
+                    writer.add_histogram('InputValues/In Transit 06 12', buffer.obs_buf[:, 42], iteration)
+                    writer.add_histogram('InputValues/In Transit 07 08', buffer.obs_buf[:, 43], iteration)
+                    writer.add_histogram('InputValues/In Transit 07 09', buffer.obs_buf[:, 44], iteration)
+                    writer.add_histogram('InputValues/In Transit 07 10', buffer.obs_buf[:, 45], iteration)
+                    writer.add_histogram('InputValues/In Transit 07 11', buffer.obs_buf[:, 46], iteration)
+                    writer.add_histogram('InputValues/In Transit 07 12', buffer.obs_buf[:, 47], iteration)
+
             else:
                 if isinstance(env.action_space, Box):
                     for i in range(env.observation_space.shape[0]):

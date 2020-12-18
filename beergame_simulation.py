@@ -119,11 +119,11 @@ class Simulation:
         self.case = BeerGame()
         self.case.order_policy = "X+Y"
         self.case.divide = 1 
-        self.case.demand_dist = dataset
-        self.case.leadtime_dist = dataset
+        # self.case.demand_dist = dataset
+        # self.case.leadtime_dist = dataset
         self.seed = seed
         self.dataset = dataset
-
+        random.seed(seed)
         possible_actions = [0, 1, 2, 3]
         self.no_actions = len(possible_actions) ** self.case.no_stockpoints
 
@@ -136,31 +136,10 @@ class Simulation:
                                 state_low=0,
                                 state_high=0,
                                 coded=True,
-                                fix=False,
+                                fix=True,
                                 ipfix=False,
                                 method='Q-learning')
 
-
-    # def custom_settings(self):
-    #     """
-    #     Can change the starting situation.
-    #     """
-    #     self.env.customSettings('self.O', 1, 1, 0, 4)
-    #     self.env.customSettings('self.O', 1, 2, 1, 4)
-    #     self.env.customSettings('self.O', 1, 3, 2, 4)
-    #     self.env.customSettings('self.in_transit', 0, 3, 4, 8)
-    #     self.env.customSettings('self.in_transit', 1, 3, 4, 4)
-    #     self.env.customSettings('self.in_transit', 0, 2, 3, 4)
-    #     self.env.customSettings('self.in_transit', 1, 2, 3, 4)
-    #     self.env.customSettings('self.in_transit', 0, 1, 2, 4)
-    #     self.env.customSettings('self.in_transit', 1, 1, 2, 4)
-    #     self.env.customSettings('self.in_transit', 0, 0, 1, 4)
-    #     self.env.customSettings('self.in_transit', 1, 0, 1, 4)
-    #     self.env.customSettings('self.T', 0, 3, 4, 4)
-    #     self.env.customSettings('self.T', 1, 3, 4, 4)
-    #     self.env.customSettings('self.T', 1, 2, 3, 4)
-    #     self.env.customSettings('self.T', 1, 1, 2, 4)
-    #     self.env.customSettings('self.T', 1, 0, 1, 4)
 
     def random_action(self):
         """Generate a random set of actions."""
@@ -186,7 +165,6 @@ class Simulation:
         totalreward, time = 0, 0
         holdinglist, bolist, policy = [], [], []
         _ = self.env.reset()
-        # self.custom_settings()
         while time < self.case.horizon:
             action = self.random_action()
             # action = self.get_next_action(time)
@@ -194,16 +172,15 @@ class Simulation:
             _, reward, _, info = self.env.simulate(decode_action(action))
             holdinglist.append(info['holding_costs'])
             bolist.append(-info['backorder_costs'])
-            print(reward)
             totalreward += reward
             time += 1
         print(totalreward)
         return totalreward, policy, holdinglist, bolist
 
 STARTTIME = ct.time()
-for sim in range(100):
-    for dataset in range(1, 5):
-        ENV = Simulation(35, dataset)
+for sim in range(500):
+    for dataset in range(1, 2):
+        ENV = Simulation(sim, dataset)
         totalrewardlist, latest_policy, holdinglist, bolist = Simulation.perform_simulation(ENV)
         file = open("resultsNEW, dataset" + str(dataset) + ".txt", "a+")
         file.write("Total reward")

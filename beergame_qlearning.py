@@ -3,7 +3,7 @@ import random
 import time as ct
 import numpy as np
 from inventory_env import InventoryEnv
-from cases.beergame import BeerGame
+from cases import BeerGame
 
 def encode_state(state):
     """Encode the state, so we can find it in the q_table."""
@@ -45,7 +45,7 @@ class QLearning:
 
         # State-Action variables
         possible_states = [1, 2, 3, 4, 5, 6, 7, 8, 9]
-        possible_actions = [0, 1, 2, 3]
+        possible_actions = [2]
 
         self.no_states = len(possible_states) ** self.case.no_stockpoints
         self.no_actions = len(possible_actions) ** self.case.no_stockpoints
@@ -55,7 +55,7 @@ class QLearning:
         # Initialize environment
         self.env = InventoryEnv(case=self.case, action_low=0, action_high=0,
                                 action_min=0, action_max=0, state_low=0, state_high=0,
-                                actions=self.no_actions, coded=True, fix=FIX, ipfix=IPFIX,
+                                coded=True, fix=FIX, ipfix=IPFIX,
                                 method='Q-learning')
 
     def initialize_q_learning(self):
@@ -66,27 +66,29 @@ class QLearning:
         self.stepsize           = 10000        # m volgens Mes? / Simulation frequency
 
         # Exploration Variables from paper
-        # self.exploitation       = 0.02
-        # exploitation_max        = 0.90
-        # exploitation_min        = 0.02
-        # self.exploitation_iter_max = 0.98
-        # self.exploitation_delta = ((exploitation_max -
-        #                             exploitation_min) /
-        #                            (self.max_iteration - 1))
+        self.exploitation       = 0.02
+        exploitation_max        = 0.90
+        exploitation_min        = 0.02
+        self.exploitation_iter_max = 0.98
+        self.exploitation_delta = ((exploitation_max -
+                                    exploitation_min) /
+                                   (self.max_iteration - 1))
 
         # Epsilon-greedy policy
         self.exploitation           = 0.95
 
+        self.q_table = np.zeros([self.horizon + 1, self.no_actions, self.no_states])
+
         # Initialize Q values with bad values
-        self.initial_q_value = -7000
+        # self.initial_q_value = -7000
         # Without linear decrease in values:
         # self.q_table = np.full([self.horizon + 1, self.no_actions, 
                                   # self.no_states], self.initial_q_value)
         # With linear decrease in values:
-        self.q_table = np.zeros([self.horizon + 1, self.no_actions, self.no_states])
-        for i in range(self.horizon):
-            self.q_table[i, :, :] = self.initial_q_value + 200 * i
-        self.q_table[35, :, :] = 0
+        # self.q_table = np.zeros([self.horizon + 1, self.no_actions, self.no_states])
+        # for i in range(self.horizon):
+        #     self.q_table[i, :, :] = self.initial_q_value + 200 * i
+        # self.q_table[35, :, :] = 0
 
     def get_next_action(self, time, state, exploitation):
         """Determine the next action to be taken.
@@ -119,17 +121,25 @@ class QLearning:
         new_state_e = encode_state(new_state)
         old_state_e = encode_state(old_state)
         new_state_q_value = self.get_q(time, new_state_e)
-        old_state_q_value = self.q_table[time][action, old_state_e]
-        # If we do not want to take the initial value into account:
-        # if new_state_q_value == self.initial_q_value + (270 * (time + 1)): new_state_q_value = 0
-        a = 50000
-        stepsize = max((a / (a + iteration)), 0.05)
-        q_value = stepsize * (reward + new_state_q_value - old_state_q_value)
-        # If we do not want to take the initial value into account:
-        # if self.q_table[time][action, old_state_e] == self.initial_q_value + (270 * (time + 1)):
-            # self.q_table[time][action, old_state_e] = q_value or reward
-        # else:
-        self.q_table[time][action, old_state_e] += q_value
+        self.q_table[time][action, old_state_e] += self.alpha * \
+            (reward + new_state_q_value -
+             self.q_table[time][action, old_state_e])
+
+
+        # new_state_e = encode_state(new_state)
+        # old_state_e = encode_state(old_state)
+        # new_state_q_value = self.get_q(time, new_state_e)
+        # old_state_q_value = self.q_table[time][action, old_state_e]
+        # # If we do not want to take the initial value into account:
+        # # if new_state_q_value == self.initial_q_value + (270 * (time + 1)): new_state_q_value = 0
+        # a = 50000
+        # stepsize = max((a / (a + iteration)), 0.05)
+        # q_value = stepsize * (reward + new_state_q_value - old_state_q_value)
+        # # If we do not want to take the initial value into account:
+        # # if self.q_table[time][action, old_state_e] == self.initial_q_value + (270 * (time + 1)):
+        #     # self.q_table[time][action, old_state_e] = q_value or reward
+        # # else:
+        # self.q_table[time][action, old_state_e] += q_value
 
     def iteration(self):
         """Iterate over the simulation."""
@@ -152,6 +162,8 @@ class QLearning:
                 time += 1
             # self.exploitation += self.exploitation_delta
             # Simulation to show current performance
+            highest_q_start = self.q_table[0][:, 4920].max()
+            print(highest_q_start)
             if current_iteration % self.stepsize == 0:
                 totalreward1, _, _ = self.perform_greedy_policy(False, 1)
                 totalreward2, _, _ = self.perform_greedy_policy(False, 2)

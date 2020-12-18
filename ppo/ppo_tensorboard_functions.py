@@ -48,7 +48,7 @@ def write_experiment_information(writer, env, network_activation, network_size,
                     epochs {}, batch size {}, epsilon {}, policy learning rate {}, value learning \
                     rate {}'.format(ppo_gamma, ppo_lambda, ppo_buffer_length, ppo_epochs, 
                     ppo_batch_size, ppo_epsilon, pi_lr, vf_lr), 0)
-    writer.add_text('Experiment information', 'Environment settings: state {}, action {}'.format(env.state_high, env.action_high), 0)
+    writer.add_text('Experiment information', 'Environment settings: state {}, action {}, action {}'.format(env.state_high, env.action_high, env.action_max), 0)
     # writer.add_text('Experiment information', 'Environment costs: holding costs {}, \
     #                 backorder costs {}'.format(env.holding_cost, env.backorder_cost), 0)
     # writer.add_text('Experiment information', 'Environment properties: products {}, demand {}, variance {}, capacity {}, \

@@ -34,9 +34,10 @@ class Buffer(Dataset):
         '''
         self.size = size
         self.gamma, self.lam = gamma, lam
-        self.cool_down_steps = int(np.rint(math.log(0.5, self.gamma)))
+        # self.cool_down_steps = int(np.rint(math.log(0.15, self.gamma)))
         self.ptr, self.path_start_idx = 0, 0
-        self.max_size = self.size + self.cool_down_steps if cooldown else self.size
+        self.max_size = self.size * 2 if cooldown else self.size
+        # self.max_size = self.size + self.cool_down_steps if cooldown else self.size
         self.obs_buf = np.zeros(combined_shape(self.max_size, obs_dim), dtype = np.float32)
         self.act_buf = np.zeros(combined_shape(self.max_size, act_dim), dtype = np.float32)
         self.adv_buf = np.zeros(self.max_size, dtype = np.float32)
@@ -86,10 +87,10 @@ class Buffer(Dataset):
 
         # Implement GAE lambda
         deltas = rews[:-1] + self.gamma * vals[1:] - vals[:-1]
-        self.adv_buf[path_slice] = discount_cumsum(deltas, self.gamma * self.lam)
+        self.adv_buf[path_slice] = discount_cumsum(deltas, self.gamma * self.lam, self.size)
         
         # Compute the reward to go, to be the targets for the value function
-        self.ret_buf[path_slice] = discount_cumsum(rews, self.gamma)[:-1]
+        self.ret_buf[path_slice] = discount_cumsum(rews, self.gamma, self.size)[:-1]
         self.path_start_idx = self.ptr
     
     def get(self):

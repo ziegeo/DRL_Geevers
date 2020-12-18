@@ -129,5 +129,7 @@ dmypy.json
 .pyre/
 
 # custom
-results/
 .vscode/
+results/
+tensorboard_results/
+tensorboard_finalversion/

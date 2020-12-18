@@ -1,17 +1,19 @@
 """@author: KevinG."""
 import numpy as np
-from inventory_env import InventoryEnv
-from cases import Divergent
 import random
+from inventory_env import InventoryEnv
+from cases import General
 
-case               = Divergent()
-case.order_policy  = 'BaseStock'                           # Predetermined order policy, can be either 'X','X+Y' or 'BaseStock' 
-action             = [[124, 30, 30, 30]]
-replications       = 1000
+
+case               = General()
+case.order_policy  = 'BaseStock'                           # Predetermined order policy, can be either 'X','X+Y' or 'BaseStock'
+action             = [[82, 100, 64, 83, 35, 35, 35, 35, 35]]
+replications       = 250
 
 for i in range(len(action)):
     totaltotalreward = 0
-    mintotalreward = -1000000
+    totalfulfilled = np.zeros([case.no_nodes, case.no_nodes], dtype=int)
+    totaldemand = np.zeros([case.no_nodes, case.no_nodes], dtype=int)
     for k in range(replications):
         env = InventoryEnv(case, case.action_low, case.action_high, case.action_min,
                         case.action_max, case.state_low, case.state_high, 'Simulation')
@@ -26,7 +28,9 @@ for i in range(len(action)):
                 totalholdingcosts += info['holding_costs']
                 totalbackordercosts += info['backorder_costs']
                 totalreward += reward
-        if totalreward > mintotalreward:
-            mintotalreward = totalreward
         totaltotalreward += totalreward
-    print("Average total reward: {}, Lowest total reward:{}, Action: {}".format(totaltotalreward/replications, mintotalreward, action[i]))
+        totalfulfilled += env.TotalFulfilled
+        totaldemand += env.TotalDemand
+    fillrate = totalfulfilled/totaldemand
+    print(fillrate)
+    print("Average total reward: {}, Action: {}".format(totaltotalreward/replications, action[i]))
