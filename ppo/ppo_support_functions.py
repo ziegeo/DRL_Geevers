@@ -107,7 +107,6 @@ def scale_input(env, state):
     '''
     Scale the input data, such that it is between min and max
     '''
-    # scaled_input = state / env.observation_space.high
     min = env.case.state_scale_low
     max = env.case.state_scale_high
     scaled_input = ((max - min) *((state - env.observation_space.low)/(env.observation_space.high - env.observation_space.low))) + min
@@ -133,22 +132,6 @@ def print_weight_bias_grad(ac, msg):
               'grad weight: ', ac.v.v_net[i].weight.grad, '\n',
               'grad bias: ', ac.v.v_net[i].bias.grad)
 
-# def determine_benchmark(benchmark, simulation_runs, simulation_length):
-#     '''
-#     This function computes the benchmark. The benchmark is the best performing of the following three policies:
-#     Returns name of benchmark and costs of benchmark.
-#     '''
-#     benchmark_cost, _, _ = benchmark.compute_benchmark_costs(simulation_runs, simulation_length, 1)
-#     #benchmark_2_cost, _, _ = benchmark.compute_benchmark_costs(simulation_runs, simulation_length, 2)
-#     #benchmark_3_cost, _, _ = benchmark.compute_benchmark_costs(simulation_runs, simulation_length, 3)
-#     #benchmark_4_cost, _, _ = benchmark.compute_benchmark_costs(simulation_runs, simulation_length, 3)
-
-#     benchmark_cost = max(benchmark_eoq_cost, benchmark_soq_cost, benchmark_coq_cost)
-#     if benchmark_eoq_cost == benchmark_cost: benchmark_name = 'EOQ'
-#     elif benchmark_soq_cost == benchmark_cost: benchmark_name = 'SOQ'
-#     else: benchmark_name = 'COQ'
-    
-#     return benchmark_name, benchmark_cost
 
 def compute_entropy_threshold(n, fraction):
     p = 1.0/n
@@ -172,18 +155,9 @@ class SimulationBuffer():
         self.warmup_period = warmup_period
         self.run, self.step = 0, 0
         self.cost_buf = np.zeros((simulation_runs), dtype = np.float32)
-        # self.inventory_buf = np.zeros((simulation_length, simulation_runs), dtype = np.float32)
-        # self.backorder_buf = np.zeros((simulation_length, simulation_runs), dtype = np.float32)
-        # self.setup_buf = np.zeros((simulation_length, simulation_runs), dtype = np.float32)
-        # self.demand_buf = np.zeros((simulation_length, simulation_runs), dtype = np.float32)
         
     def store(self, costs):
         self.cost_buf[self.run] = costs
-        # self.inventory_buf[self.step, self.run] = inventory
-        # self.backorder_buf[self.step, self.run] = backorders
-        # self.setup_buf[self.step, self.run] = setups
-        # self.demand_buf[self.step, self.run] = demand
-        # self.step += 1
     
     def next_run(self):
         self.run += 1
@@ -202,10 +176,6 @@ class SimulationBuffer():
         
     def determine_confidence_intervals(self):
         self.confidence_intervals = {'cost': self.compute_confidence_interval(self.cost_buf)}
-                                    #  'inventory': self.compute_confidence_interval(self.inventory_buf),
-                                    #  'backorders': self.compute_confidence_interval(self.backorder_buf),
-                                    #  'setups': self.compute_confidence_interval(self.setup_buf),
-                                    #  'demand_buf': self.compute_confidence_interval(self.demand_buf)}
         return self.confidence_intervals
     
     def fill_buffer(self, env, model):

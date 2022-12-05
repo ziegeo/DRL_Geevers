@@ -2,7 +2,7 @@
 import time as ct
 import numpy as np
 import random
-from inventory_env import InventoryEnv
+from inventory_env_old import InventoryEnv
 from cases import BeerGame
 
 
@@ -137,7 +137,7 @@ class Simulation:
                                 state_high=0,
                                 coded=True,
                                 fix=True,
-                                ipfix=False,
+                                ipfix=True,
                                 method='Q-learning')
 
 
@@ -179,7 +179,7 @@ class Simulation:
 
 STARTTIME = ct.time()
 for sim in range(500):
-    for dataset in range(1, 2):
+    for dataset in range(1):
         ENV = Simulation(sim, dataset)
         totalrewardlist, latest_policy, holdinglist, bolist = Simulation.perform_simulation(ENV)
         file = open("resultsNEW, dataset" + str(dataset) + ".txt", "a+")

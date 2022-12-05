@@ -1,6 +1,6 @@
 # Resulting policy figures
 
-from inventory_env import InventoryEnv
+from inventory_env_old import InventoryEnv
 # from EnvironmentBenchmarks import BenchmarkCalculations
 from ppo.ppo_buffer_functions import Buffer
 from ppo.ppo_support_functions import scale_input, set_seeds
@@ -21,12 +21,13 @@ import random
 import itertools
 import math
 
-CASE        = "CBC" 
-FIX         = True
+CASE = "Divergent"
+FIX = True
 
 
 def myround(x, base=5):
-    return base * math.ceil(x/base)
+    return base * math.ceil(x / base)
+
 
 def check_action_space(action):
     low = case.action_low
@@ -35,9 +36,10 @@ def check_action_space(action):
     min = case.action_min
     action_clip = np.clip(action, low, high)
     for i in range(len(action_clip)):
-        action_clip[i] = ((action_clip[i] - low[i]) / (high[i]-low[i])) * ((max[i] - min[i])) + min[i]
+        action_clip[i] = ((action_clip[i] - low[i]) / (high[i] - low[i])) * ((max[i] - min[i])) + min[i]
     action = [np.round(num) for num in action_clip]
     return action
+
 
 if CASE == "Divergent":
     case = Divergent()
@@ -56,16 +58,16 @@ elif CASE == "CBC":
     end_sim = 100
     directory = 'results/DRL/CBC/Experiment5/'
 
-
 env = InventoryEnv(case, case.action_low, case.action_high, case.action_min, case.action_max,
                    case.state_low, case.state_high, method='DRL')
 
 # fill buffer with final network
-
 cooldown_buffer = False
 
+
 def get_ppo_policy_results(env, rn, size, df, model):
-    ac = MLPActorCritic(env.observation_space, env.action_space, env.feasible_actions, (64, 64), nn.Tanh, 0.0, 'uniform')
+    ac = MLPActorCritic(env.observation_space, env.action_space, env.feasible_actions, (64, 64), nn.Tanh, 0.0,
+                        'uniform')
     model = torch.load(directory + model)
     ac.load_state_dict(model)
     set_seeds(env, rn)
@@ -77,18 +79,18 @@ def get_ppo_policy_results(env, rn, size, df, model):
     else:
         raise NotImplementedError
 
-    buffer = Buffer(env.observation_space.shape[0], action_dim, 
-                    size, 0.99, 0.95, cooldown = cooldown_buffer)
+    buffer = Buffer(env.observation_space.shape[0], action_dim,
+                    size, 0.99, 0.95, cooldown=cooldown_buffer)
     buffer.reset_buffer()
     o = env.reset()
     holdinglist, bolist, rewardlist = [], [], []
     # fill up buffer
     for t in range(buffer.max_size):
-        o = torch.as_tensor([scale_input(env, o)], dtype = torch.float32)
+        o = torch.as_tensor([scale_input(env, o)], dtype=torch.float32)
         a, v, logp, entropy, stdev = ac.step(o, True)
         next_o, r, d, info_dict = env.simulate(a[0])
         # save and log observation, action, reward (scaled by number of iterations), value, logprob, entropy
-        buffer.store(o, a, r/size, v, logp, entropy)
+        buffer.store(o, a, r / size, v, logp, entropy)
         # update obs (very important!)
         o = next_o
         # determine if the buffer has filled up
@@ -97,24 +99,24 @@ def get_ppo_policy_results(env, rn, size, df, model):
             holdinglist.append(info_dict['holding_costs'])
             bolist.append(info_dict['backorder_costs'])
             rewardlist.append(r)
-            df = df.append({'RN' : rn,
+            df = df.append({'RN': rn,
                             'PPO_Inventory': info_dict['holding_costs'],
                             'PPO_Backorders': info_dict['backorder_costs'],
                             'PPO_Costs': r}, ignore_index=True)
 
         # we need to get the final value estimate
         if buffer_finished:
-            _, v, _, _,_ = ac.step(torch.as_tensor([scale_input(env, o)], dtype = torch.float32))
+            _, v, _, _, _ = ac.step(torch.as_tensor([scale_input(env, o)], dtype=torch.float32))
             buffer.finish_path(v)
             totalfulfilled = env.TotalFulfilled
             totaldemand = env.TotalDemand
-            fillrate = totalfulfilled/totaldemand
+            fillrate = totalfulfilled / totaldemand
             print("DRL")
-            print(fillrate)    
+            print(fillrate)
             o = env.reset()
     buffer.get()
     state_norm = buffer.total_data['obs'].numpy()
-    state = ((state_norm - 0) / (1+0)) * ((env.state_high - env.state_low)) + env.state_low
+    state = ((state_norm - 0) / (1 + 0)) * ((env.state_high - env.state_low)) + env.state_low
     state = np.rint(state)
     inventory = state[:, 0]
     if env.case.__class__.__name__ == "BeerGame":
@@ -126,25 +128,25 @@ def get_ppo_policy_results(env, rn, size, df, model):
     else:
         raise NotImplemented
 
-    # lengthx = 101
-    # x_axis = np.arange(-(lengthx/2), lengthx/2, dtype=int)
-    # # Inventory upstream
-    # lengthy = 61
-    # y_axis = np.arange(lengthy)
-    # #in Transit
-    # lengthy2 = 76
-    # y_axis2 = np.arange(lengthy2)
-    # data, data2, data3, data4, data5, data6 = np.zeros([lengthy, lengthx]), np.zeros([lengthy, lengthx]), np.zeros([lengthy, lengthx]), np.zeros([lengthy2, lengthx]), np.zeros([lengthy2, lengthx]), np.zeros([lengthy2, lengthx])
-    # # Warehouse
-    # x_axis_warehouse = np.arange(lengthx)
-    # y_axis_warehouse = np.arange(lengthy)
-    # data7 = np.zeros([lengthy, lengthx])
+    lengthx = 101
+    x_axis = np.arange(-(lengthx/2), lengthx/2, dtype=int)
+    # Inventory upstream
+    lengthy = 66
+    y_axis = np.arange(lengthy)
+    #in Transit
+    lengthy2 = 76
+    y_axis2 = np.arange(lengthy2)
+    data, data2, data3, data4, data5, data6 = np.zeros([lengthy, lengthx]), np.zeros([lengthy, lengthx]), np.zeros([lengthy, lengthx]), np.zeros([lengthy2, lengthx]), np.zeros([lengthy2, lengthx]), np.zeros([lengthy2, lengthx])
+    # Warehouse
+    x_axis_warehouse = np.arange(lengthx)
+    y_axis_warehouse = np.arange(lengthy)
+    data7 = np.zeros([lengthy, lengthx])
 
-    # # Fill the with data
-    # # Inventory Upstream
+    # Fill the with data
+    # Inventory Upstream
     # for x in itertools.product(y_axis, x_axis):
     #     inv_1 = max(x[1], 0)
-    #     bo_1 = abs(min(x[1], 0))   
+    #     bo_1 = abs(min(x[1], 0))
     #     inv_0 = x[0]
     #     totalinventory = inv_0 + inv_1
     #     totalbo = bo_1
@@ -181,7 +183,7 @@ def get_ppo_policy_results(env, rn, size, df, model):
     # for x2 in itertools.product(y_axis2, x_axis):
     #     in_transit  = x2[0]
     #     inv_1 = max(x2[1], 0)
-    #     bo_1 = abs(min(x2[1], 0))   
+    #     bo_1 = abs(min(x2[1], 0))
     #     inv_0 = 30
     #     totalinventory = inv_0 + inv_1
     #     totalbo = bo_1
@@ -214,37 +216,37 @@ def get_ppo_policy_results(env, rn, size, df, model):
     #     data5[int(x2[0]), int((x2[1]+(lengthx/2)))] = int(a2[2])
     #     data6[int(x2[0]), int((x2[1]+(lengthx/2)))] = int(a3[3])
 
+    for x3 in itertools.product(y_axis_warehouse, x_axis_warehouse):
+        in_transit  = x3[0]
+        inv_0 = x3[1]
+        totalinventory = inv_0 + 45
+        # Warehouse
+        state_warehouse = np.array([totalinventory, 0,  # Total inventory and total backorders
+                        inv_0,15,15,15,              # Inventory per stockpoint
+                        0,0,0,                       # Backorders per stockpoint
+                        in_transit,10,10,10])
+        o1 = torch.as_tensor([scale_input(env, state_warehouse)], dtype = torch.float32)
+        a1, _, _, _, stdev = ac.step(o1, True)
+        a1 = check_action_space(a1[0])
+        # Add data
+        data7[int(x3[0]), int(x3[1])]  = int(a1[0])
 
-    # for x3 in itertools.product(y_axis_warehouse, x_axis_warehouse):
-    #     in_transit  = x3[0]
-    #     inv_0 = x3[1]
-    #     totalinventory = inv_0 + 45
-    #     # Warhouse 
-    #     state_warehouse = np.array([totalinventory, 0,  # Total inventory and total backorders
-    #                     inv_0,15,15,15,              # Inventory per stockpoint
-    #                     0,0,0,                       # Backorders per stockpoint
-    #                     in_transit,10,10,10])
-    #     o1 = torch.as_tensor([scale_input(env, state_warehouse)], dtype = torch.float32)
-    #     a1, _, _, _, stdev = ac.step(o1, True)
-    #     a1 = check_action_space(a1[0])
-    #     # Add data
-    #     data7[int(x3[0]), int(x3[1])]  = int(a1[0])
+    vmin = min(np.amin(data), np.amin(data2), np.amin(data3), np.amin(data4), np.amin(data5), np.amin(data6))
+    vmax = myround(max(np.amax(data), np.amax(data2), np.amax(data3), np.amax(data4), np.amax(data5), np.amax(data6)))
+    df1 = pd.DataFrame(data, columns=x_axis, index=y_axis)
+    df2 = pd.DataFrame(data2, columns=x_axis, index=y_axis)
+    df3 = pd.DataFrame(data3, columns=x_axis, index=y_axis)
+    df4 = pd.DataFrame(data4, columns=x_axis, index=y_axis2)
+    df5 = pd.DataFrame(data5, columns=x_axis, index=y_axis2)
+    df6 = pd.DataFrame(data6, columns=x_axis, index=y_axis2)
+    df7 = pd.DataFrame(data7, columns=x_axis_warehouse, index=y_axis_warehouse)
 
-    # vmin = min(np.amin(data), np.amin(data2), np.amin(data3), np.amin(data4), np.amin(data5), np.amin(data6))
-    # vmax = myround(max(np.amax(data), np.amax(data2), np.amax(data3), np.amax(data4), np.amax(data5), np.amax(data6)))
-    # df1 = pd.DataFrame(data, columns=x_axis, index=y_axis)
-    # df2 = pd.DataFrame(data2, columns=x_axis, index=y_axis)
-    # df3 = pd.DataFrame(data3, columns=x_axis, index=y_axis)
-    # df4 = pd.DataFrame(data4, columns=x_axis, index=y_axis2)
-    # df5 = pd.DataFrame(data5, columns=x_axis, index=y_axis2)
-    # df6 = pd.DataFrame(data6, columns=x_axis, index=y_axis2)
-    # df7 = pd.DataFrame(data7, columns=x_axis_warehouse, index=y_axis_warehouse)
-
-    # vmax_w = myround(np.amax(data7))
-    # plot_actions_heatmap_warehouse(df7, 0, vmax_w)
-    # plot_actions_heatmap([df1, df2, df3, df4, df5, df6], vmin, vmax)
+    vmax_w = myround(np.amax(data7))
+    plot_actions_heatmap_warehouse(df7, 0, vmax_w)
+    plot_actions_heatmap([df1, df2, df3, df4, df5, df6], vmin, vmax)
 
     return df, holdinglist, bolist, rewardlist
+
 
 def get_benchmark_results(env, rn, length, df, action):
     random.seed(rn)
@@ -257,38 +259,41 @@ def get_benchmark_results(env, rn, length, df, action):
             inventorylist.append(info['holding_costs'])
             backorderlist.append(info['backorder_costs'])
             rewardlist.append(reward)
-            df = df.append({'RN' : rn,
-                'Benchmark_Inventory': info['holding_costs'],
-                'Benchmark_Backorders': info['backorder_costs'],
-                'Benchmark_Costs': reward}, ignore_index=True)
+            df = df.append({'RN': rn,
+                            'Benchmark_Inventory': info['holding_costs'],
+                            'Benchmark_Backorders': info['backorder_costs'],
+                            'Benchmark_Costs': reward}, ignore_index=True)
 
     totalfulfilled = env.TotalFulfilled
     totaldemand = env.TotalDemand
     totalBO = env.TotalBO
-    fillrate = totalfulfilled/totaldemand
+    fillrate = totalfulfilled / totaldemand
     print("BENCH")
     print(fillrate)
     return df, inventorylist, backorderlist, rewardlist
 
+
 def plot_actions_heatmap(data, vmin, vmax):
-    fig = plt.figure(figsize=(9,6))
-    bottom,top,left,right = 0.2,0.9,0.1,0.85
-    fig.subplots_adjust(bottom=bottom,left=left,right=right,top=top)
+    fig = plt.figure(figsize=(9, 6))
+    bottom, top, left, right = 0.2, 0.9, 0.1, 0.85
+    fig.subplots_adjust(bottom=bottom, left=left, right=right, top=top)
     fig, axn = plt.subplots(2, 3, sharex=True, sharey=True)
     cbar_ax = fig.add_axes([.91, .3, .03, .4])
     for i, ax in enumerate(axn.flat):
-        sns.heatmap(data[i], ax=ax, cbar=i == 0, vmin=vmin, vmax=vmax, xticklabels=50, yticklabels=10, cbar_ax=None if i else cbar_ax, cmap='RdYlGn')
+        sns.heatmap(data[i], ax=ax, cbar=i == 0, vmin=vmin, vmax=vmax, xticklabels=50, yticklabels=10,
+                    cbar_ax=None if i else cbar_ax, cmap='RdYlGn')
         ax.invert_yaxis()
         if i == 0:
             ax.set_ylabel(r"Inventory Warehouse", size=10)
         if i == 3:
             ax.set_ylabel(r"In Transit", size=10)
         if i >= 3:
-            ax.set_xlabel("Inventory retailer {}".format(i-2), size=10)
+            ax.set_xlabel("Inventory retailer {}".format(i - 2), size=10)
     # ylabel only on the left
     plt.tight_layout(rect=[0, 0, .9, 1])
     plt.savefig(directory + "{} - plot.png".format(rn))
     # tikzplotlib.save(directory + "mytikz.tex")
+
 
 def plot_actions_heatmap_warehouse(data, vmin, vmax):
     fig = plt.figure()
@@ -301,6 +306,7 @@ def plot_actions_heatmap_warehouse(data, vmin, vmax):
     plt.savefig(directory + "{} - plot warehouse.png".format(rn))
     # tikzplotlib.save(directory + "mytikz.tex")
 
+
 def plot_actions_surface(x, y, z):
     fig = plt.figure()
     ax = fig.add_subplot(111, projection='3d')
@@ -310,21 +316,24 @@ def plot_actions_surface(x, y, z):
 
     plt.savefig(directory + "plotsurface.png")
 
+
 def plot_actions_scatter(x, y, data, hue):
-    plt.figure(figsize = (16, 10))
+    plt.figure(figsize=(16, 10))
     fig = sns.scatterplot(x=x, y=y, data=data, hue=hue)
-    plt.savefig(directory + "plot.png", dpi = 1000)
+    plt.savefig(directory + "plot.png", dpi=1000)
+
 
 def plot_costs_over_time(prod1, prod2, costs, title, start, end):
-    plt.figure(figsize = (8,5))
-    plt.plot(prod1[start:end], label = 'Inventory', linewidth = 2)
-    plt.plot(prod2[start:end], label = 'Backorders', linewidth = 2)
-    plt.title(title + str(costs), fontsize = 18)
+    plt.figure(figsize=(8, 5))
+    plt.plot(prod1[start:end], label='Inventory', linewidth=2)
+    plt.plot(prod2[start:end], label='Backorders', linewidth=2)
+    plt.title(title + str(costs), fontsize=18)
     plt.ylabel('inventory level')
-    plt.ylim(bottom = 0, top = 300)
+    plt.ylim(bottom=0, top=300)
     plt.legend()
     fig_title = directory + title + str(end) + 'inv'
-    plt.savefig(fig_title, dpi = 1000)
+    plt.savefig(fig_title, dpi=1000)
+
 
 # Plot acties voor een given state als input
 # def plot_action_distribution(mean, std, x_min, x_max, title):
@@ -346,30 +355,33 @@ def plot_costs_over_time(prod1, prod2, costs, title, start, end):
 
 # TODO: Add In Transit and Warehouse graphs to 1 graph
 # TODO: Simulated data to df
-ppo_df = pd.DataFrame({'RN' : [],
-                   'Benchmark_Inventory': [],
-                   'Benchmark_Backorders': [],
-                   'Benchmark_Costs': [],
-                   'PPO_Inventory': [],
-                   'PPO_Backorders': [],
-                   'PPO_Costs': []})
+ppo_df = pd.DataFrame({'RN': [],
+                       'Benchmark_Inventory': [],
+                       'Benchmark_Backorders': [],
+                       'Benchmark_Costs': [],
+                       'PPO_Inventory': [],
+                       'PPO_Backorders': [],
+                       'PPO_Costs': []})
 
-benchmark_df = pd.DataFrame({'RN' : [],
-                   'Benchmark_Inventory': [],
-                   'Benchmark_Backorders': [],
-                   'Benchmark_Costs': [],
-                   'PPO_Inventory': [],
-                   'PPO_Backorders': [],
-                   'PPO_Costs': []})
+benchmark_df = pd.DataFrame({'RN': [],
+                             'Benchmark_Inventory': [],
+                             'Benchmark_Backorders': [],
+                             'Benchmark_Costs': [],
+                             'PPO_Inventory': [],
+                             'PPO_Backorders': [],
+                             'PPO_Costs': []})
 
 env2 = InventoryEnv(case2, case.action_low, case.action_high, case.action_min, case.action_max,
-                case.state_low, case.state_high, 'Simulation', "Continuous")
-for rn in range(10):
-    benchmark_df, benchmark_inventory, benchmark_backorders, benchmark_reward = get_benchmark_results(env2, rn, 200, benchmark_df, basestock)
-    ppo_df, ppo_inventory, ppo_backorders, ppo_reward = get_ppo_policy_results(env, rn, 200, ppo_df, 'newresult29999RN{}.pt'.format(rn))
-    df = ppo_df.combine_first(benchmark_df)
-    # plot_costs_over_time(benchmark_inventory, benchmark_backorders, 
-    #                 np.sum(benchmark_reward), '{} - Benchmark policy over time'.format(rn), 50, 100)
-    # plot_costs_over_time(ppo_inventory, ppo_backorders, 
-    #                 np.sum(ppo_reward), '{} - PPO policy over time'.format(rn), 50, 100)
-    df.to_csv(directory + 'data{}.csv'.format(rn))
+                    case.state_low, case.state_high, 'Simulation', "Continuous")
+for rn in range(1):
+    benchmark_df, benchmark_inventory, benchmark_backorders, benchmark_reward = get_benchmark_results(env2, rn, 200,
+                                                                                                      benchmark_df,
+                                                                                                      basestock)
+    ppo_df, ppo_inventory, ppo_backorders, ppo_reward = get_ppo_policy_results(env, rn, 200, ppo_df,
+                                                                               'net/newresult29999RN{}.pt'.format(rn))
+#     df = ppo_df.combine_first(benchmark_df)
+#     # plot_costs_over_time(benchmark_inventory, benchmark_backorders,
+#     #                 np.sum(benchmark_reward), '{} - Benchmark policy over time'.format(rn), 50, 100)
+#     # plot_costs_over_time(ppo_inventory, ppo_backorders,
+#     #                 np.sum(ppo_reward), '{} - PPO policy over time'.format(rn), 50, 100)
+#     df.to_csv(directory + '5/' + 'data{}.csv'.format(i))

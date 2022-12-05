@@ -7,7 +7,9 @@ from cases import General
 
 case               = General()
 case.order_policy  = 'BaseStock'                           # Predetermined order policy, can be either 'X','X+Y' or 'BaseStock'
-action             = [[82, 100, 64, 83, 35, 35, 35, 35, 35]]
+original_action             = [[82, 100, 64, 83, 35, 35, 35, 35, 35]]
+
+action = (case.action_high - case.action_low) * ((original_action - case.action_min) / (case.action_max - case.action_min)) + case.action_low
 replications       = 250
 
 for i in range(len(action)):
@@ -16,7 +18,7 @@ for i in range(len(action)):
     totaldemand = np.zeros([case.no_nodes, case.no_nodes], dtype=int)
     for k in range(replications):
         env = InventoryEnv(case, case.action_low, case.action_high, case.action_min,
-                        case.action_max, case.state_low, case.state_high, 'Simulation')
+                        case.action_max, case.state_low, case.state_high)
         run_name = "RN{}".format(k)
         random.seed(k)
         np.random.seed(k)

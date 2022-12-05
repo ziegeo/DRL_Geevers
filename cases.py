@@ -248,13 +248,20 @@ class General:
         self.state_high                      = np.array([4500, 8250,             # Total inventory and backorders
                                                         500, 500, 500, 500, 500, 500, 500, 500, 500,  # Inventory per stockpoint
                                                         500, 500, 500,                                # Backorders for stockpoint 4
-                                                        500, 500, 500, 500,                           # Backorders for stockpoint 5  
-                                                        500, 500,                                     # Backorders for stockpoint 6 
-                                                        500, 500, 500, 500, 500,                      # Backorders for stockpoint 7 
+                                                        500, 500, 500, 500,                           # Backorders for stockpoint 5
+                                                        500, 500,                                     # Backorders for stockpoint 6
+                                                        500, 500, 500, 500, 500,                      # Backorders for stockpoint 7
                                                         250, 250, 250, 250, 250,          # Backorders for stockpoints 8-12
                                                         150, 150, 150, 150,               # In Transit for stockpoints 4-7
-                                                        75, 75, 75,                       # In Transit for stockpoint 8     
-                                                        75, 75, 75,                       # In Transit for stockpoint 9         
-                                                        75, 75, 75,                       # In Transit for stockpoint 10 
+                                                        75, 75, 75,                       # In Transit for stockpoint 8
+                                                        75, 75, 75,                       # In Transit for stockpoint 9
+                                                        75, 75, 75,                       # In Transit for stockpoint 10
                                                         75, 75, 75,                       # In Transit for stockpoint 11
                                                         75, 75])                          # In Transit for stockpoint 12
+        # self.state_low                       = np.zeros(29)
+        # self.state_high                      = np.array([4500, 8250,             # Total inventory and backorders
+        #                                                 500, 500, 500, 500, 500, 500, 500, 500, 500,  # Inventory per stockpoint
+        #                                                 500, 500, 500, 500,               # Backorders for stockpoint 4-7
+        #                                                 250, 250, 250, 250, 250,          # Backorders for stockpoints 8-12
+        #                                                 150, 150, 150, 150,               # In Transit for stockpoints 4-7
+        #                                                 75, 75, 75, 75, 75])              # In Transit for stockpoint 8 - 12

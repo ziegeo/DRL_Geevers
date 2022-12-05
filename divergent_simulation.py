@@ -1,6 +1,6 @@
 """@author: KevinG."""
 import numpy as np
-from inventory_env import InventoryEnv
+from inventory_env_old import InventoryEnv
 from cases import Divergent
 import random
 
@@ -11,6 +11,7 @@ replications       = 1000
 
 for i in range(len(action)):
     totaltotalreward = 0
+    rewardlist = []
     mintotalreward = -1000000
     for k in range(replications):
         env = InventoryEnv(case, case.action_low, case.action_high, case.action_min,
@@ -29,4 +30,5 @@ for i in range(len(action)):
         if totalreward > mintotalreward:
             mintotalreward = totalreward
         totaltotalreward += totalreward
-    print("Average total reward: {}, Lowest total reward:{}, Action: {}".format(totaltotalreward/replications, mintotalreward, action[i]))
+        rewardlist.append(totalreward)
+    print("Average total reward: {}, Lowest total reward:{}, Action: {}, Complete rewardlist: {}".format(totaltotalreward/replications, mintotalreward, action[i], rewardlist))
