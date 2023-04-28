@@ -1,6 +1,6 @@
 """@author: KevinG."""
 import numpy as np
-from inventory_env import InventoryEnv
+from inventory_env_old import InventoryEnv
 from ppo.ppo_training_functions import ppo_learning
 from ppo.ppo_support_functions import set_seeds
 from cases import Divergent
@@ -21,7 +21,7 @@ for k in range(10):
     # Initialize environment
     env = InventoryEnv(case, case.action_low, case.action_high,
                        case.action_min, case.action_max, case.state_low, case.state_high, 
-                       'DRL', fix=True)
+                       'DRL')
     run_name = "RN{}".format(k)
 
     # set random seed

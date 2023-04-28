@@ -12,7 +12,7 @@ ppo_evaluation_steps        = 500
 #number of consecutive evaluation iterations without improvement
 ppo_evaluation_threshold    = 250
 # maximum number of iterations in learning run
-ppo_iterations              = 30000
+ppo_iterations              = 50000
 # length of one episode in buffer
 ppo_buffer_length           = 256
 # discount factor used in GAE calculations
@@ -24,6 +24,7 @@ cooldown_buffer             = False
 # clipping value used in policy loss calculations
 ppo_epsilon                 = 0.2
 # learning rate for policy network
+#TODO: chatgpt zegt 3e-4. Dat eens proberen?
 pi_lr                       = 1e-4
 # learning rate for value network
 vf_lr                       = 1e-4

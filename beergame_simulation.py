@@ -119,8 +119,8 @@ class Simulation:
         self.case = BeerGame()
         self.case.order_policy = "X+Y"
         self.case.divide = 1 
-        # self.case.demand_dist = dataset
-        # self.case.leadtime_dist = dataset
+        self.case.demand_dist = dataset
+        self.case.leadtime_dist = dataset
         self.seed = seed
         self.dataset = dataset
         random.seed(seed)
@@ -178,8 +178,8 @@ class Simulation:
         return totalreward, policy, holdinglist, bolist
 
 STARTTIME = ct.time()
-for sim in range(500):
-    for dataset in range(1):
+for sim in range(100):
+    for dataset in range(1, 5):
         ENV = Simulation(sim, dataset)
         totalrewardlist, latest_policy, holdinglist, bolist = Simulation.perform_simulation(ENV)
         file = open("resultsNEW, dataset" + str(dataset) + ".txt", "a+")

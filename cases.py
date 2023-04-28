@@ -54,11 +54,13 @@ class BeerGame:
         # Predetermined order policy, can be either 'X' or 'X+Y' or 'BaseStock' 
         self.order_policy          = 'X'
         self.horizon               = 35
-        self.divide                = False
+        self.divide                = 1000
         self.warmup                = 1
         self.fix                   = False
         self.action_low            = np.array([-1, -1, -1, -1])
         self.action_high           = np.array([1, 1, 1, 1])
+        self.state_scale_low                 = -1
+        self.state_scale_high                = 1
         self.action_min            = np.array([0,0,0,0])
         self.action_max            = np.array([30,30,30,30])
         self.state_low             = np.zeros([50])
@@ -168,7 +170,7 @@ class General:
         # Total number of echelons, including supplier and customer
         self.no_echelons = len(self.stockpoints_echelon)
         # Connections between every stockpoint
-        self.relative_rationing = True
+        self.relative_rationing = False
         if self.relative_rationing:
             self.connections = np.array([
                                     #0  1  2  3  4  5  6  7    8    9    10   11   12 13 14 15 16 17
@@ -191,13 +193,19 @@ class General:
                                     [0, 0, 0, 0, 0, 0, 0, 0,   0,   0,    0,   0,   0, 0, 0, 0, 0, 0],   # 16
                                     [0, 0, 0, 0, 0, 0, 0, 0,   0,   0,    0,   0,   0, 0, 0, 0, 0, 0]    # 17
                                     ])
+            self.action_low                      = np.array([-1,-1,-1,-1,-1,-1,-1,-1,-1])
+            self.action_high                     = np.array([1,1,1,1,1,1,1,1,1])
+            self.state_low                       = np.zeros(9)
+            self.action_max                      = np.array([150, 150, 150, 150, 75, 75, 75, 75, 75])
         else:
             self.connections = np.array([
+                                #row means from who it is 
+                                #column means to whom it is connected
                                 #0  1  2  3  4  5  6  7  8  9 10 11 12 13 14 15 16 17
-                                [0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],   # 0
-                                [0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],   # 1
-                                [0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],   # 2
-                                [0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],   # 3
+                                [0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],   # 0   supplier
+                                [0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],   # 1   supplier
+                                [0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],   # 2   supplier
+                                [0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],   # 3   supplier
                                 [0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0],   # 4
                                 [0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0],   # 5
                                 [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0],   # 6
@@ -213,6 +221,10 @@ class General:
                                 [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],   # 16
                                 [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]    # 17
                                 ])
+            self.action_low                      = np.array([-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1])
+            self.action_high                     = np.array([1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1])
+            self.action_min                      = np.array([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0])
+            self.action_max                      = np.array([150, 150, 150, 150, 75, 75, 75, 75, 75, 75, 75, 75, 75, 75, 75, 75, 75, 75])
         # Determines what happens with unsatisfied demand, can be either 'backorders' or 'lost_sales'
         self.unsatisfied_demand              = 'backorders'  
         # Initial inventory per stockpoint                    
@@ -238,30 +250,19 @@ class General:
         self.horizon                         = 100
         self.warmup                          = 50
         self.divide                          = 1000
-        self.action_low                      = np.array([-1,-1,-1,-1,-1,-1,-1,-1,-1])
-        self.action_high                     = np.array([1,1,1,1,1,1,1,1,1])
         self.state_scale_low                 = 0
         self.state_scale_high                = 1
-        self.action_min                      = np.array([0, 0, 0, 0, 0, 0, 0, 0, 0])
-        self.action_max                      = np.array([150, 150, 150, 150, 75, 75, 75, 75, 75])
         self.state_low                       = np.zeros(48)
-        self.state_high                      = np.array([4500, 8250,             # Total inventory and backorders
+        self.state_high                      = np.array([4500, 8250,                                  # Total inventory and backorders
                                                         500, 500, 500, 500, 500, 500, 500, 500, 500,  # Inventory per stockpoint
                                                         500, 500, 500,                                # Backorders for stockpoint 4
                                                         500, 500, 500, 500,                           # Backorders for stockpoint 5
                                                         500, 500,                                     # Backorders for stockpoint 6
                                                         500, 500, 500, 500, 500,                      # Backorders for stockpoint 7
-                                                        250, 250, 250, 250, 250,          # Backorders for stockpoints 8-12
+                                                        250, 250, 250, 250, 250,                      # Backorders for stockpoints 8-12
                                                         150, 150, 150, 150,               # In Transit for stockpoints 4-7
                                                         75, 75, 75,                       # In Transit for stockpoint 8
                                                         75, 75, 75,                       # In Transit for stockpoint 9
                                                         75, 75, 75,                       # In Transit for stockpoint 10
                                                         75, 75, 75,                       # In Transit for stockpoint 11
                                                         75, 75])                          # In Transit for stockpoint 12
-        # self.state_low                       = np.zeros(29)
-        # self.state_high                      = np.array([4500, 8250,             # Total inventory and backorders
-        #                                                 500, 500, 500, 500, 500, 500, 500, 500, 500,  # Inventory per stockpoint
-        #                                                 500, 500, 500, 500,               # Backorders for stockpoint 4-7
-        #                                                 250, 250, 250, 250, 250,          # Backorders for stockpoints 8-12
-        #                                                 150, 150, 150, 150,               # In Transit for stockpoints 4-7
-        #                                                 75, 75, 75, 75, 75])              # In Transit for stockpoint 8 - 12

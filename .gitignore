@@ -134,3 +134,4 @@ tensorboard_results/
 tensorboard_finalversion/
 .idea/
 .vscode/
+*.xlsx

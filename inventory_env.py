@@ -63,7 +63,6 @@ class InventoryEnv(gym.Env):
     def _generate_demand(self):
         """
         Generate the demand using a predefined distribution.
-
         Writes the demand to the orders table.
         """
         source, destination = np.nonzero(self.case.connections)
@@ -285,6 +284,8 @@ class InventoryEnv(gym.Env):
 
     def _place_order(self, i, j, t, k, action, incomingOrders):
         if self.case.order_policy == 'X':
+            # print("K:{}, i:{}, j:{}".format(k, i, j))
+            # print(action)
             self.O[t, j, i] += action[k]
             if (self.t < self.case.horizon - 1) and (self.t >= self.case.warmup-1): 
                 self.TotalDemand[j,i] += action[k]
@@ -323,7 +324,7 @@ class InventoryEnv(gym.Env):
                             self.case.no_suppliers):
                     CIP[i+1] = self.INV[0, i]
                     CIP[i+5] = bo_echelon[i]
-                    CIP[i+9] = previousDemand[i]
+                    CIP[i+9] = previousDemand[i-1]
                     CIP[i+13] = in_transit0[i]
                     CIP[i+17] = in_transit1[i]
                     CIP[i+21] = in_transit2[i]
@@ -345,9 +346,7 @@ class InventoryEnv(gym.Env):
         elif self.case_name == 'Divergent':
             totalinventory = np.sum(self.INV[0, self.case.no_suppliers:-self.case.no_customers], 0)
             totalbackorders = np.sum(bo_echelon, 0)
-            # previousDemand = np.sum(self.O[1], 1)
             in_transit0 = np.sum(self.in_transit[0], 0)
-            # transport1 = np.sum(self.T[1], 0)
             CIP = np.zeros([self.case.no_stockpoints*3+1], dtype=int)
             CIP[0] = totalinventory
             CIP[1] = totalbackorders
@@ -356,9 +355,7 @@ class InventoryEnv(gym.Env):
                 CIP[i+1] = self.INV[0, i]
                 if i > self.case.no_suppliers:
                     CIP[i+4] = bo_echelon[i]
-                # CIP[i+8] = previousDemand[i]
                 CIP[i+8] = in_transit0[i]
-                # CIP[i+16] = transport1[i]
             CIP = np.clip(CIP, self.observation_space.low, self.observation_space.high)
         elif self.case_name == 'General':
             totalinventory = np.sum(self.INV[0, self.case.no_suppliers:-self.case.no_customers], 0)

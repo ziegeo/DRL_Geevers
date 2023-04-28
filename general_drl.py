@@ -5,7 +5,7 @@ from ppo.ppo_support_functions import set_seeds
 from cases import General
 import ppo_settings
 
-experiment_name = 'CBC/PAPER'
+experiment_name = 'CBC/PAPERNEWACTIONSKleinetest/'
 case = General()
 
 # length of simulation to compute benchmark and as stopping criterion
@@ -15,7 +15,7 @@ ppo_warmup_period = case.warmup
 
 policy_results_states = [[0, 12, 12, 12, 12]]
 
-for k in range(10):
+for k in range(4):
     print("Replication " + str(k))
     # Initialize environment
     env = InventoryEnv(case, case.action_low, case.action_high,

@@ -357,7 +357,7 @@ class InventoryEnv(gym.Env):
                                 self.case.no_suppliers):
                         CIP[i+1] = self.INV[0, i]
                         CIP[i+5] = bo_echelon[i]
-                        CIP[i+9] = previousDemand[i]
+                        CIP[i+9] = previousDemand[i-1]
                         CIP[i+13] = in_transit0[i]
                         CIP[i+17] = in_transit1[i]
                         CIP[i+21] = in_transit2[i]
