@@ -126,6 +126,7 @@ class InventoryEnv(gym.Env):
         for i in range(self.case.no_stockpoints + self.case.no_suppliers):
             # Check if the inventory is larger than all incoming orders
             if self.INV[0, i] >= np.sum(self.O[0, :, i], 0):
+                # print(f"Inventory of {i} is {self.INV[0, i]} which is larger than {np.sum(self.O[0, :, i], 0)}")
                 for j in np.nonzero(self.case.connections[i])[0]:
                     if self.O[0, j, i] > 0:
                         self._fulfill_order(i, j, self.O[0, j, i])
@@ -133,6 +134,7 @@ class InventoryEnv(gym.Env):
                             self.TotalFulfilled[j,i] += self.O[0,j,i]
             else:
                 IPlist = {}
+                # print(f"Inventory of {i} is {self.INV[0, i]} which is smaller than {np.sum(self.O[0, :, i], 0)}")
                 # Generate a list of stockpoints that have outstanding orders
                 k_list = np.nonzero(self.O[0, :, i])[0]
                 bo_echelon = np.sum(self.BO[0], 0)
@@ -155,24 +157,28 @@ class InventoryEnv(gym.Env):
                         if self.t >= self.case.warmup:
                             self.TotalFulfilled[j,i] += inventory
                         if self.case.unsatisfied_demand == 'backorders':
+                            # print(f"Not enough inventory, backorders will be added. stockpoint{i} to {j}, inventory of i:{inventory}, Backorder prev:{self.BO[0,j,i]}, bo quantity {quantity}")
                             self.BO[0, j, i] += quantity
                             if self.t >= self.case.warmup:
+                                # print("i: {} j: {} inventory:{}".format(i, j, inventory))
                                 self.TotalBO[j,i] += quantity
         if self.case.unsatisfied_demand == 'backorders':
             i_list, j_list = np.nonzero(self.case.connections)
             for i, j in zip(i_list, j_list):
                 inventory = self.INV[0, i]
+                backorder = self.BO[0, j, i]
                 # If there are any backorders, fulfill them afterwards
-                if inventory > 0:
+                if inventory > 0 and backorder > 0:
                     # If the inventory is larger than the backorder
                     # Fulfill the whole backorder
-                    backorder = self.BO[0, j, i]
                     if inventory >= backorder:
                         self._fulfill_order(i, j, backorder)
+                        # print(f"backorder will be fullfilled. stockpoint{i} to {j}, inventory of i:{inventory}, Backorder prev:{self.BO[0,j,i]}, backorder:{backorder}")
                         self.BO[0, j, i] = 0
                     # Else, fulfill the entire inventory
                     else:
                         self._fulfill_order(i, j, inventory)
+                        # print(f"inventory will be fullfilled to reduce backorders. stockpoint{i} to {j}, inventory of i:{inventory}, Backorder prev:{self.BO[0,j,i]}")
                         self.BO[0, j, i] -= inventory
 
     def _recieve_incoming_orders_customers(self):
@@ -189,21 +195,24 @@ class InventoryEnv(gym.Env):
                     self._fulfill_order(i, j, inventory)
                     # Add to backorder if applicable
                     if self.case.unsatisfied_demand == 'backorders':
+                        # print(f"Not enough inventory, backorders will be added. stockpoint{i} to {j}, inventory of i:{inventory}, Backorder prev:{self.BO[0,j,i]}, bo quantity {quantity}")
                         self.BO[0, j, i] += quantity
         if self.case.unsatisfied_demand == 'backorders':
             for i, j in zip(i_list[-self.case.no_customers:], j_list[-self.case.no_customers:]):
                 inventory = self.INV[0, i]
                 # If there are any backorders, fulfill them afterwards
-                if inventory > 0:
+                if inventory > 0 and backorder > 0:
                     # If the inventory is larger than the backorder
                     # Fulfill the whole backorder
                     backorder = self.BO[0, j, i]
                     if inventory >= backorder:
                         self._fulfill_order(i, j, backorder)
+                        # print(f"backorder will be fullfilled. stockpoint{i} to {j}, inventory of i:{inventory}, Backorder prev:{self.BO[0,j,i]}, backorder:{backorder}")
                         self.BO[0, j, i] = 0
                     # Else, fulfill the entire inventory
                     else:
                         self._fulfill_order(i, j, inventory)
+                        # print(f"inventory will be fullfilled to reduce backorders. stockpoint{i} to {j}, inventory of i:{inventory}, Backorder prev:{self.BO[0,j,i]}")
                         self.BO[0, j, i] -= inventory
 
     def _recieve_incoming_orders_divergent(self):
@@ -295,9 +304,11 @@ class InventoryEnv(gym.Env):
                 self.TotalDemand[j,i] += incomingOrders[j] + action[k]
         elif self.case.order_policy == 'BaseStock':
             bo_echelon = np.sum(self.BO[0], 0)
-            self.O[t, j, i] += max(0, action[k] - (self.INV[0, j] + self.in_transit[0, i, j] - bo_echelon[j]))
+            totalorderamount = action[k] - (self.INV[0, j] + self.in_transit[0, i, j] - bo_echelon[j])
+            number_of_upstream_connections = np.sum(self.case.connections[:, j])
+            self.O[t, j, i] += max(0, totalorderamount/number_of_upstream_connections)
             if (self.t < self.case.horizon - 1) and (self.t >= self.case.warmup-1): 
-                self.TotalDemand[j,i] += max(0, action[k] - (self.INV[0, j] + self.in_transit[0, i, j] - bo_echelon[j]))
+                self.TotalDemand[j,i] += max(0, totalorderamount/number_of_upstream_connections)
         else:
             raise NotImplementedError        
 
@@ -358,6 +369,15 @@ class InventoryEnv(gym.Env):
                 CIP[i+8] = in_transit0[i]
             CIP = np.clip(CIP, self.observation_space.low, self.observation_space.high)
         elif self.case_name == 'General':
+
+            # print(f"inventory:{self.INV[0, self.case.no_suppliers:-self.case.no_customers]}")
+            self.INV[0, self.case.no_suppliers:-self.case.no_customers] = np.minimum(self.INV[0, self.case.no_suppliers:-self.case.no_customers], self.case.state_high[2:11])
+            # print(f"inventory capped:{self.INV[0, :]}")
+            # print("bo :{}".format(self.BO[0, :]))
+            self.BO[0, :] =  np.minimum(self.BO[0, :], [0,0,0,0,500,500,500,500,250,250,250,250,250,0,0,0,0,0] )
+            # print("bo capped:{}".format(self.BO[0, :]))
+
+
             totalinventory = np.sum(self.INV[0, self.case.no_suppliers:-self.case.no_customers], 0)
             totalbackorders = np.sum(bo_echelon, 0)
             previousDemand = np.sum(self.O[1], 1)
@@ -367,8 +387,9 @@ class InventoryEnv(gym.Env):
             CIP[1] = totalbackorders
             for i in range(self.case.no_suppliers, self.case.no_stockpoints +
                         self.case.no_suppliers):
+                # print(i)
+                # print(self.INV[0, i])
                 CIP[i - self.case.no_suppliers + 2] = self.INV[0, i]        # [2, 10]
-                CIP[i+7] = bo_echelon[i]                                    # [11, 19]
             # loop hier over nonzeros van connectie
             k = 11
             i_list, j_list = np.nonzero(self.case.connections)
@@ -378,7 +399,12 @@ class InventoryEnv(gym.Env):
             for i, j in zip(i_list[:-self.case.no_customers], j_list[:-self.case.no_customers]):
                 CIP[k] = self.in_transit[0, i, j]  
                 k += 1
+            CIP_old = CIP
             CIP = np.clip(CIP, self.observation_space.low, self.observation_space.high)
+            if np.array_equiv(CIP_old,CIP) == False:
+                print("Hier gaat nog iets mis")
+                print(CIP_old)
+                print(CIP)
         else: 
             raise NotImplementedError
         return CIP

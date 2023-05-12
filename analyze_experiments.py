@@ -1,6 +1,6 @@
 # Resulting policy figures
 
-from inventory_env_old import InventoryEnv
+from inventory_env import InventoryEnv
 # from EnvironmentBenchmarks import BenchmarkCalculations
 from ppo.ppo_buffer_functions import Buffer
 from ppo.ppo_support_functions import scale_input, set_seeds
@@ -52,13 +52,14 @@ elif CASE == "CBC":
     case = General()
     case2 = General()
     case2.order_policy = "BaseStock"
-    basestock = [82, 100, 64, 83, 35, 35, 35, 35, 35]
+    basestock = [37, 47, 33, 63, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30]
+    basestock_action = (case.action_high - case.action_low) * ((basestock - case.action_min) / (case.action_max - case.action_min)) + case.action_low
     begin_sim = 50
     end_sim = 100
-    directory = 'results/DRL/CBC/Experiment5/'
+    directory = 'results/DRL/CBC/Experiment3/'
 
 env = InventoryEnv(case, case.action_low, case.action_high, case.action_min, case.action_max,
-                   case.state_low, case.state_high, method='DRL')
+                   case.state_low, case.state_high)
 
 # fill buffer with final network
 cooldown_buffer = False
@@ -142,7 +143,7 @@ def get_ppo_policy_results(env, rn, size, df, model):
         o = next_o
         # determine if the buffer has filled up
         buffer_finished = t == buffer.max_size - 1
-        if t >= begin_sim:
+        if t >= begin_sim and t < end_sim:
             holdinglist.append(info_dict['holding_costs'])
             bolist.append(info_dict['backorder_costs'])
             rewardlist.append(r)
@@ -192,106 +193,106 @@ def get_ppo_policy_results(env, rn, size, df, model):
 
     # Fill the with data
     # Inventory Upstream
-    for x in itertools.product(y_axis, x_axis):
-        inv_1 = max(x[1], 0)
-        bo_1 = abs(min(x[1], 0))
-        inv_0 = x[0]
-        totalinventory = inv_0 + inv_1
-        totalbo = bo_1
-        # RETAILER 1
-        state1 = np.array([totalinventory+30, totalbo,  # Total inventory and total backorders
-                        inv_0,inv_1,15,15,              # Inventory per stockpoint
-                        bo_1,0,0,                       # Backorders per stockpoint
-                        30,10,10,10])
-        o1 = torch.as_tensor([scale_input(env, state1)], dtype = torch.float32)
-        a1, _, _, _, stdev = ac.step(o1, True)
-        a1 = check_action_space(a1[0])
-        # RETAILER 2
-        state2 = np.array([totalinventory+30, totalbo,  # Total inventory and total backorders
-                        inv_0,15,inv_1,15,              # Inventory per stockpoint
-                        0,bo_1,0,                       # Backorders per stockpoint
-                        30,10,10,10])
-        o2 = torch.as_tensor([scale_input(env, state2)], dtype = torch.float32)
-        a2, _, _, _, stdev = ac.step(o2, True)
-        a2 = check_action_space(a2[0])
-        # RETAILER 3
-        state3 = np.array([totalinventory+30, totalbo,                # Total inventory and total backorders
-                        inv_0,15,15,inv_1,    # Inventory per stockpoint
-                        0,0,bo_1,                  # Backorders per stockpoint
-                        30,10,10,10])
-        o3 = torch.as_tensor([scale_input(env, state3)], dtype = torch.float32)
-        a3, _, _, _, stdev = ac.step(o3, True)
-        a3 = check_action_space(a3[0])
-        # Add data
-        data[int(x[0]), int((x[1]+(lengthx/2)))]  = int(a1[1])
-        data2[int(x[0]), int((x[1]+(lengthx/2)))] = int(a2[2])
-        data3[int(x[0]), int((x[1]+(lengthx/2)))] = int(a3[3])
+    # for x in itertools.product(y_axis, x_axis):
+    #     inv_1 = max(x[1], 0)
+    #     bo_1 = abs(min(x[1], 0))
+    #     inv_0 = x[0]
+    #     totalinventory = inv_0 + inv_1
+    #     totalbo = bo_1
+    #     # RETAILER 1
+    #     state1 = np.array([totalinventory+30, totalbo,  # Total inventory and total backorders
+    #                     inv_0,inv_1,15,15,              # Inventory per stockpoint
+    #                     bo_1,0,0,                       # Backorders per stockpoint
+    #                     30,10,10,10])
+    #     o1 = torch.as_tensor([scale_input(env, state1)], dtype = torch.float32)
+    #     a1, _, _, _, stdev = ac.step(o1, True)
+    #     a1 = check_action_space(a1[0])
+    #     # RETAILER 2
+    #     state2 = np.array([totalinventory+30, totalbo,  # Total inventory and total backorders
+    #                     inv_0,15,inv_1,15,              # Inventory per stockpoint
+    #                     0,bo_1,0,                       # Backorders per stockpoint
+    #                     30,10,10,10])
+    #     o2 = torch.as_tensor([scale_input(env, state2)], dtype = torch.float32)
+    #     a2, _, _, _, stdev = ac.step(o2, True)
+    #     a2 = check_action_space(a2[0])
+    #     # RETAILER 3
+    #     state3 = np.array([totalinventory+30, totalbo,                # Total inventory and total backorders
+    #                     inv_0,15,15,inv_1,    # Inventory per stockpoint
+    #                     0,0,bo_1,                  # Backorders per stockpoint
+    #                     30,10,10,10])
+    #     o3 = torch.as_tensor([scale_input(env, state3)], dtype = torch.float32)
+    #     a3, _, _, _, stdev = ac.step(o3, True)
+    #     a3 = check_action_space(a3[0])
+    #     # Add data
+    #     data[int(x[0]), int((x[1]+(lengthx/2)))]  = int(a1[1])
+    #     data2[int(x[0]), int((x[1]+(lengthx/2)))] = int(a2[2])
+    #     data3[int(x[0]), int((x[1]+(lengthx/2)))] = int(a3[3])
 
-    # In Transit
-    for x2 in itertools.product(y_axis2, x_axis):
-        in_transit  = x2[0]
-        inv_1 = max(x2[1], 0)
-        bo_1 = abs(min(x2[1], 0))
-        inv_0 = 30
-        totalinventory = inv_0 + inv_1
-        totalbo = bo_1
-        # RETAILER 1
-        state1 = np.array([totalinventory+30, totalbo,  # Total inventory and total backorders
-                        inv_0,inv_1,15,15,              # Inventory per stockpoint
-                        bo_1,0,0,                       # Backorders per stockpoint
-                        30,in_transit,10,10])
-        o1 = torch.as_tensor([scale_input(env, state1)], dtype = torch.float32)
-        a1, _, _, _, stdev = ac.step(o1, True)
-        a1 = check_action_space(a1[0])
-        # RETAILER 2
-        state2 = np.array([totalinventory+30, totalbo,  # Total inventory and total backorders
-                        inv_0,15,inv_1,15,              # Inventory per stockpoint
-                        0,bo_1,0,                       # Backorders per stockpoint
-                        30,10,in_transit,10])
-        o2 = torch.as_tensor([scale_input(env, state2)], dtype = torch.float32)
-        a2, _, _, _, stdev = ac.step(o2, True)
-        a2 = check_action_space(a2[0])
-        # RETAILER 3
-        state3 = np.array([totalinventory+30, totalbo,                # Total inventory and total backorders
-                        inv_0,15,15,inv_1,    # Inventory per stockpoint
-                        0,0,bo_1,                  # Backorders per stockpoint
-                        30,10,10,in_transit])
-        o3 = torch.as_tensor([scale_input(env, state3)], dtype = torch.float32)
-        a3, _, _, _, stdev = ac.step(o3, True)
-        a3 = check_action_space(a3[0])
-        # Add data
-        data4[int(x2[0]), int((x2[1]+(lengthx/2)))]  = int(a1[1])
-        data5[int(x2[0]), int((x2[1]+(lengthx/2)))] = int(a2[2])
-        data6[int(x2[0]), int((x2[1]+(lengthx/2)))] = int(a3[3])
+    # # In Transit
+    # for x2 in itertools.product(y_axis2, x_axis):
+    #     in_transit  = x2[0]
+    #     inv_1 = max(x2[1], 0)
+    #     bo_1 = abs(min(x2[1], 0))
+    #     inv_0 = 30
+    #     totalinventory = inv_0 + inv_1
+    #     totalbo = bo_1
+    #     # RETAILER 1
+    #     state1 = np.array([totalinventory+30, totalbo,  # Total inventory and total backorders
+    #                     inv_0,inv_1,15,15,              # Inventory per stockpoint
+    #                     bo_1,0,0,                       # Backorders per stockpoint
+    #                     30,in_transit,10,10])
+    #     o1 = torch.as_tensor([scale_input(env, state1)], dtype = torch.float32)
+    #     a1, _, _, _, stdev = ac.step(o1, True)
+    #     a1 = check_action_space(a1[0])
+    #     # RETAILER 2
+    #     state2 = np.array([totalinventory+30, totalbo,  # Total inventory and total backorders
+    #                     inv_0,15,inv_1,15,              # Inventory per stockpoint
+    #                     0,bo_1,0,                       # Backorders per stockpoint
+    #                     30,10,in_transit,10])
+    #     o2 = torch.as_tensor([scale_input(env, state2)], dtype = torch.float32)
+    #     a2, _, _, _, stdev = ac.step(o2, True)
+    #     a2 = check_action_space(a2[0])
+    #     # RETAILER 3
+    #     state3 = np.array([totalinventory+30, totalbo,                # Total inventory and total backorders
+    #                     inv_0,15,15,inv_1,    # Inventory per stockpoint
+    #                     0,0,bo_1,                  # Backorders per stockpoint
+    #                     30,10,10,in_transit])
+    #     o3 = torch.as_tensor([scale_input(env, state3)], dtype = torch.float32)
+    #     a3, _, _, _, stdev = ac.step(o3, True)
+    #     a3 = check_action_space(a3[0])
+    #     # Add data
+    #     data4[int(x2[0]), int((x2[1]+(lengthx/2)))]  = int(a1[1])
+    #     data5[int(x2[0]), int((x2[1]+(lengthx/2)))] = int(a2[2])
+    #     data6[int(x2[0]), int((x2[1]+(lengthx/2)))] = int(a3[3])
 
-    for x3 in itertools.product(y_axis_warehouse, x_axis_warehouse):
-        in_transit  = x3[0]
-        inv_0 = x3[1]
-        totalinventory = inv_0 + 45
-        # Warehouse
-        state_warehouse = np.array([totalinventory, 0,  # Total inventory and total backorders
-                        inv_0,15,15,15,              # Inventory per stockpoint
-                        0,0,0,                       # Backorders per stockpoint
-                        in_transit,10,10,10])
-        o1 = torch.as_tensor([scale_input(env, state_warehouse)], dtype = torch.float32)
-        a1, _, _, _, stdev = ac.step(o1, True)
-        a1 = check_action_space(a1[0])
-        # Add data
-        data7[int(x3[0]), int(x3[1])]  = int(a1[0])
+    # for x3 in itertools.product(y_axis_warehouse, x_axis_warehouse):
+    #     in_transit  = x3[0]
+    #     inv_0 = x3[1]
+    #     totalinventory = inv_0 + 45
+    #     # Warehouse
+    #     state_warehouse = np.array([totalinventory, 0,  # Total inventory and total backorders
+    #                     inv_0,15,15,15,              # Inventory per stockpoint
+    #                     0,0,0,                       # Backorders per stockpoint
+    #                     in_transit,10,10,10])
+    #     o1 = torch.as_tensor([scale_input(env, state_warehouse)], dtype = torch.float32)
+    #     a1, _, _, _, stdev = ac.step(o1, True)
+    #     a1 = check_action_space(a1[0])
+    #     # Add data
+    #     data7[int(x3[0]), int(x3[1])]  = int(a1[0])
 
-    vmin = min(np.amin(data), np.amin(data2), np.amin(data3), np.amin(data4), np.amin(data5), np.amin(data6))
-    vmax = myround(max(np.amax(data), np.amax(data2), np.amax(data3), np.amax(data4), np.amax(data5), np.amax(data6)))
-    df1 = pd.DataFrame(data, columns=x_axis, index=y_axis)
-    df2 = pd.DataFrame(data2, columns=x_axis, index=y_axis)
-    df3 = pd.DataFrame(data3, columns=x_axis, index=y_axis)
-    df4 = pd.DataFrame(data4, columns=x_axis, index=y_axis2)
-    df5 = pd.DataFrame(data5, columns=x_axis, index=y_axis2)
-    df6 = pd.DataFrame(data6, columns=x_axis, index=y_axis2)
-    df7 = pd.DataFrame(data7, columns=x_axis_warehouse, index=y_axis_warehouse)
+    # vmin = min(np.amin(data), np.amin(data2), np.amin(data3), np.amin(data4), np.amin(data5), np.amin(data6))
+    # vmax = myround(max(np.amax(data), np.amax(data2), np.amax(data3), np.amax(data4), np.amax(data5), np.amax(data6)))
+    # df1 = pd.DataFrame(data, columns=x_axis, index=y_axis)
+    # df2 = pd.DataFrame(data2, columns=x_axis, index=y_axis)
+    # df3 = pd.DataFrame(data3, columns=x_axis, index=y_axis)
+    # df4 = pd.DataFrame(data4, columns=x_axis, index=y_axis2)
+    # df5 = pd.DataFrame(data5, columns=x_axis, index=y_axis2)
+    # df6 = pd.DataFrame(data6, columns=x_axis, index=y_axis2)
+    # df7 = pd.DataFrame(data7, columns=x_axis_warehouse, index=y_axis_warehouse)
 
-    vmax_w = myround(np.amax(data7))
-    plot_actions_heatmap_warehouse_contour(df7, 0, vmax_w)
-    plot_actions_heatmap_contour([df1, df2, df3, df4, df5, df6], vmin, vmax)
+    # vmax_w = myround(np.amax(data7))
+    # plot_actions_heatmap_warehouse_contour(df7, 0, vmax_w)
+    # plot_actions_heatmap_contour([df1, df2, df3, df4, df5, df6], vmin, vmax)
 
     return df, holdinglist, bolist, rewardlist
 
@@ -301,9 +302,9 @@ def get_benchmark_results(env, rn, length, df, action):
     np.random.seed(rn)
     _ = env.reset()
     rewardlist, inventorylist, backorderlist = [], [], []
-    for t in range(length):
+    for t in range(case.horizon):
         _, reward, _, info = env.simulate(action)
-        if t >= begin_sim:
+        if t >= case.warmup:
             inventorylist.append(info['holding_costs'])
             backorderlist.append(info['backorder_costs'])
             rewardlist.append(reward)
@@ -463,17 +464,16 @@ benchmark_df = pd.DataFrame({'RN': [],
                              'PPO_Costs': []})
 
 env2 = InventoryEnv(case2, case.action_low, case.action_high, case.action_min, case.action_max,
-                    case.state_low, case.state_high, 'Simulation', "Continuous")
-for rn in range(10):
-    # benchmark_df, benchmark_inventory, benchmark_backorders, benchmark_reward = get_benchmark_results(env2, rn, 200,
-    #                                                                                                   benchmark_df,
-    #                                                                                                   basestock)
-    # ppo_df, ppo_inventory, ppo_backorders, ppo_reward = get_ppo_policy_results(env, rn, 200, ppo_df,
-    #                                                                            'net/newresult29999RN{}.pt'.format(rn))
-    save_states_encountered(env, rn, 2000, 'newresult29999RN{}.pt'.format(rn))
-#     df = ppo_df.combine_first(benchmark_df)
+                    case.state_low, case.state_high)
+
+
+benchmark_df, benchmark_inventory, benchmark_backorders, benchmark_reward = get_benchmark_results(env2, 1, 200,benchmark_df,basestock_action)
+ppo_df, ppo_inventory, ppo_backorders, ppo_reward = get_ppo_policy_results(env, 1, 200, ppo_df,
+                                                                               'model49999.pt')
+# save_states_encountered(env,0, 2000, 'model49999.pt')
+df = ppo_df.combine_first(benchmark_df)
 #     # plot_costs_over_time(benchmark_inventory, benchmark_backorders,
 #     #                 np.sum(benchmark_reward), '{} - Benchmark policy over time'.format(rn), 50, 100)
 #     # plot_costs_over_time(ppo_inventory, ppo_backorders,
 #     #                 np.sum(ppo_reward), '{} - PPO policy over time'.format(rn), 50, 100)
-#     df.to_csv(directory + '5/' + 'data{}.csv'.format(i))
+df.to_csv(directory + 'data1.csv', sep=";", decimal=",")
