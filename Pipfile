@@ -4,8 +4,22 @@ verify_ssl = true
 name = "pypi"
 
 [packages]
+numpy = ">=1.16.1"
+pandas = "*"
+seaborn = "*"
+gymnasium = "*"
+dm-tree = "*"
+pyarrow = "*"
+ray = {extras = ["train"] }
+typer = "*"
+scikit-image = "*"
+torch = "*"
+stockpyl = "*"
+notebook = "*"
+pyyaml = "*"
 
 [dev-packages]
+ipykernel = "*"
 
 [requires]
-python_version = "3.9"
+python_version = "3.11"

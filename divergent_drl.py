@@ -3,6 +3,8 @@ import numpy as np
 from inventory_env_old import InventoryEnv
 from ppo.ppo_training_functions import ppo_learning
 from ppo.ppo_support_functions import set_seeds
+import ppo_settings
+
 from cases import Divergent
 
 experiment_name                 = 'Divergent/DivergentFalsetest'
@@ -29,8 +31,8 @@ for k in range(10):
     
     # call learning function
     ppo_learning(env, False, experiment_name, run_name, 
-                 network_activation, network_size, network_bias_init, network_weights_init,
-                 ppo_evaluation_steps, ppo_evaluation_threshold, 
-                 ppo_iterations, ppo_buffer_length, ppo_gamma, ppo_lambda, cooldown_buffer, 
-                 ppo_epsilon, pi_lr, vf_lr, ppo_save_freq, ppo_epochs, ppo_batch_size,
-                 ppo_simulation_runs, ppo_simulation_length, ppo_warmup_period, policy_results_states)
+                 ppo_settings.network_activation, ppo_settings.network_size, ppo_settings.network_bias_init, ppo_settings.network_weights_init,
+                 ppo_settings.ppo_evaluation_steps, ppo_settings.ppo_evaluation_threshold,
+                 ppo_settings.ppo_iterations, ppo_settings.ppo_buffer_length, ppo_settings.ppo_gamma, ppo_settings.ppo_lambda, ppo_settings.cooldown_buffer,
+                 ppo_settings.ppo_epsilon, ppo_settings.pi_lr, ppo_settings.vf_lr, ppo_settings.ppo_save_freq, ppo_settings.ppo_epochs, ppo_settings.ppo_batch_size,
+                 ppo_settings.ppo_simulation_runs, ppo_simulation_length, ppo_warmup_period, policy_results_states)
